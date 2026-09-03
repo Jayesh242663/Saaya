@@ -35,7 +35,19 @@ Configure these variables in your hosting provider's dashboard:
 
 ## 3. Deployment Options
 
-### Option A: Render (Recommended - Free / Low Cost)
+### Option A: Vercel (Frontend + Serverless API)
+
+1. Import your GitHub repository into **Vercel**.
+2. Vercel automatically detects the Vite framework, `vercel.json`, and the Serverless API in `api/index.js`.
+3. Under **Settings $\to$ Environment Variables**, add:
+   - `INWORLD_API_KEY`: *(Your key)*
+   - `GEMINI_API_KEY`: *(Optional fallback)*
+4. Click **Deploy**. Vercel will build the frontend into `dist/` and route all `/api/*` requests through the serverless function.
+*(Note: Vercel Serverless handles playlist extraction, audio synthesis, and weather. For persistent WebSockets in Listening Rooms, deploy to Render or Railway).*
+
+---
+
+### Option B: Render (Recommended for Full WebSockets)
 
 1. Create a **New Web Service** connected to your Git repository.
 2. Configure settings:

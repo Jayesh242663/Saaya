@@ -58,7 +58,6 @@ export function useYouTubeAudio(arg1 = {}, arg2 = null) {
         height: '1',
         width: '1',
         videoId: currentYoutubeId || '',
-        host: 'https://www.youtube-nocookie.com',
         playerVars: {
           autoplay: 0,
           controls: 0,

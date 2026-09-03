@@ -14,23 +14,73 @@ import { proceduralCommentary } from './proceduralCommentary.js';
 import { voiceResolverService } from './voiceResolverService.js';
 
 export const playlistCurationService = {
+  extractDirectYoutubeFallback(url) {
+    try {
+      const u = (url || '').trim();
+      let videoId = null;
+      if (u.includes('youtu.be/')) {
+        videoId = u.split('youtu.be/')[1]?.split(/[?#&]/)[0];
+      } else if (u.includes('watch?v=')) {
+        videoId = new URL(u).searchParams.get('v');
+      } else if (u.includes('/embed/')) {
+        videoId = u.split('/embed/')[1]?.split(/[?#&]/)[0];
+      }
+      if (videoId && /^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+        return {
+          title: 'YouTube Stream',
+          source: 'youtube-direct',
+          trackCount: 1,
+          dominantLanguage: 'en-US',
+          dominantLanguageName: 'English',
+          tracks: [
+            {
+              id: `yt-direct-${videoId}`,
+              title: 'YouTube Broadcast',
+              artist: 'Featured Stream',
+              youtubeId: videoId,
+              language: 'English',
+              languageCode: 'en-US',
+              meta: 'LIVE STREAM',
+              art: 'radial-gradient(circle at 50% 50%, #2e1065, #050505)',
+              core: '#7c3aed',
+              glow: 'rgba(124, 58, 237, 0.4)',
+              rotate: 'rotate(0deg)'
+            }
+          ]
+        };
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  },
+
   /**
    * Fetch and extract tracks from any playlist URL (Spotify, Apple Music, JioSaavn, YouTube)
    */
   async fetchPlaylist(url) {
-    const res = await fetch('/api/playlist/extract', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url })
-    });
+    try {
+      const res = await fetch('/api/playlist/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
 
-    if (!res.ok) {
-      const errorData = await res.json().catch(() => ({}));
-      throw new Error(errorData.message || `Failed to extract playlist (HTTP ${res.status})`);
+      if (!res.ok) {
+        const fallback = this.extractDirectYoutubeFallback(url);
+        if (fallback) return fallback;
+
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || `Failed to extract playlist (HTTP ${res.status})`);
+      }
+
+      const data = await res.json();
+      return data;
+    } catch (err) {
+      const fallback = this.extractDirectYoutubeFallback(url);
+      if (fallback) return fallback;
+      throw err;
     }
-
-    const data = await res.json();
-    return data;
   },
 
   /**

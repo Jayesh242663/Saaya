@@ -17,28 +17,21 @@ export async function handleTtsRequest(req, res) {
   }
 
   if (req.method === 'POST' && (req.url === '/api/tts' || req.url === '/api/tts/')) {
-    let body = '';
-    req.on('data', (chunk) => {
-      body += chunk;
-      if (body.length > 65536) {
-        res.statusCode = 413;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ error: 'PAYLOAD_TOO_LARGE', message: 'Request payload exceeds limit.' }));
-        req.destroy();
-      }
-    });
-
-    req.on('end', async () => {
+    const processSynthesis = async (rawBody) => {
       try {
         let parsedPayload = {};
-        if (body) {
-          try {
-            parsedPayload = JSON.parse(body);
-          } catch {
-            res.statusCode = 400;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: 'INVALID_JSON', message: 'Malformed JSON payload.' }));
-            return;
+        if (rawBody) {
+          if (typeof rawBody === 'object') {
+            parsedPayload = rawBody;
+          } else {
+            try {
+              parsedPayload = JSON.parse(rawBody);
+            } catch {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: 'INVALID_JSON', message: 'Malformed JSON payload.' }));
+              return;
+            }
           }
         }
 
@@ -70,6 +63,27 @@ export async function handleTtsRequest(req, res) {
           })
         );
       }
+    };
+
+    // If pre-parsed by Vercel serverless
+    if (req.body) {
+      processSynthesis(req.body);
+      return;
+    }
+
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk;
+      if (body.length > 65536) {
+        res.statusCode = 413;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: 'PAYLOAD_TOO_LARGE', message: 'Request payload exceeds limit.' }));
+        req.destroy();
+      }
+    });
+
+    req.on('end', () => {
+      processSynthesis(body);
     });
     return;
   }

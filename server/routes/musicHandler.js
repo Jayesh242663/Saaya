@@ -10,19 +10,9 @@ export function handleMusicRequest(req, res) {
 
   // POST /api/playlist/extract - Extract tracks from Spotify, JioSaavn, Apple Music, or YouTube
   if (req.method === 'POST' && (pathname === '/api/playlist/extract' || pathname === '/api/playlist/extract/')) {
-    let body = '';
-    req.on('data', (chunk) => {
-      body += chunk;
-      if (body.length > 32768) {
-        res.statusCode = 413;
-        res.end(JSON.stringify({ error: 'PAYLOAD_TOO_LARGE', message: 'Payload exceeds limit' }));
-        req.destroy();
-      }
-    });
-
-    req.on('end', async () => {
+    const processExtraction = async (bodyPayload) => {
       try {
-        const parsed = JSON.parse(body || '{}');
+        const parsed = typeof bodyPayload === 'string' ? JSON.parse(bodyPayload || '{}') : (bodyPayload || {});
         const url = parsed.url;
         if (!url || typeof url !== 'string') {
           res.statusCode = 400;
@@ -48,6 +38,26 @@ export function handleMusicRequest(req, res) {
           })
         );
       }
+    };
+
+    // If body is already parsed by Vercel serverless environment
+    if (req.body) {
+      processExtraction(req.body);
+      return;
+    }
+
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk;
+      if (body.length > 32768) {
+        res.statusCode = 413;
+        res.end(JSON.stringify({ error: 'PAYLOAD_TOO_LARGE', message: 'Payload exceeds limit' }));
+        req.destroy();
+      }
+    });
+
+    req.on('end', () => {
+      processExtraction(body);
     });
     return;
   }
