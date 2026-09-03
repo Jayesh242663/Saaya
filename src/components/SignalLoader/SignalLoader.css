@@ -1,0 +1,127 @@
+.signal-loader-screen {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 20;
+  padding: 40px 20px;
+  animation: fadeInLoader 0.6s var(--ease) forwards;
+}
+
+@keyframes fadeInLoader {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.signal-loader-container {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.signal {
+  width: min(48vw, 320px);
+  max-width: 320px;
+  max-height: 320px;
+  aspect-ratio: 1;
+  margin: auto;
+  border: 1px solid rgba(196, 160, 129, 0.14);
+  border-radius: 50%;
+  position: relative;
+  animation: signal 3.8s ease-in-out infinite;
+}
+
+.signal::before,
+.signal::after {
+  content: '';
+  position: absolute;
+  inset: 13%;
+  border: 1px solid rgba(196, 160, 129, 0.11);
+  border-radius: 50%;
+  animation: ring 3.8s ease-in-out infinite;
+}
+
+.signal::after {
+  inset: 27%;
+  animation-delay: 0.55s;
+}
+
+.core {
+  position: absolute;
+  inset: 43%;
+  border-radius: 50%;
+  background: #c4a081;
+  box-shadow: 0 0 55px 16px rgba(196, 160, 129, 0.22);
+  animation: core 1.8s ease-in-out infinite;
+}
+
+.loading-copy {
+  margin-top: 32px;
+  color: var(--soft);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.loading-copy::after {
+  content: ' ·';
+  animation: dots 1.2s steps(3, end) infinite;
+}
+
+@keyframes signal {
+  0%, 100% {
+    transform: scale(0.86);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes ring {
+  0%, 100% {
+    transform: scale(0.84);
+    opacity: 0.2;
+  }
+  50% {
+    transform: scale(1.07);
+    opacity: 0.85;
+  }
+}
+
+@keyframes core {
+  0%, 100% {
+    transform: scale(0.72);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.22);
+    opacity: 1;
+  }
+}
+
+@keyframes dots {
+  0% { content: ' ·'; }
+  33% { content: ' ··'; }
+  66%, 100% { content: ' ···'; }
+}
+
+@media (max-width: 600px) {
+  .signal {
+    width: min(65vw, 240px);
+  }
+  .loading-copy {
+    font-size: 10px;
+    margin-top: 24px;
+  }
+}

@@ -1,0 +1,108 @@
+.track-info {
+  position: relative;
+  text-align: center;
+  margin-top: clamp(-14px, -1.8vh, -4px);
+  min-height: auto;
+  flex-shrink: 0;
+}
+
+.track-kicker {
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-size: 8.5px;
+  margin-bottom: clamp(4px, 0.8vh, 8px);
+}
+
+.track-title {
+  font-size: clamp(20px, 2.6vw, 30px);
+  line-height: 1.05;
+  font-weight: 400;
+  letter-spacing: -0.035em;
+  margin: 0 0 clamp(3px, 0.6vh, 6px);
+  color: var(--ink);
+}
+
+.track-artist {
+  color: var(--soft);
+  font-size: clamp(11.5px, 1.2vw, 13px);
+  line-height: 1.2;
+}
+
+.track-meta {
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-top: clamp(4px, 0.8vh, 8px);
+}
+
+.progress-wrap {
+  width: min(420px, 78vw);
+  margin: clamp(12px, 1.8vh, 22px) auto 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.progress-track {
+  height: 2px;
+  background: rgba(244, 241, 235, 0.16);
+  position: relative;
+  cursor: pointer;
+  touch-action: none;
+}
+
+/* Expanded invisible hover/touch hit area */
+.progress-track::before {
+  content: '';
+  position: absolute;
+  inset: -10px 0;
+}
+
+.progress-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--ink);
+  pointer-events: none;
+  will-change: width;
+}
+
+.progress-thumb {
+  position: absolute;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 12px rgba(244, 241, 235, 0.6);
+  pointer-events: none;
+  will-change: left;
+}
+
+.progress-track:hover .progress-thumb,
+.progress-track.is-scrubbing .progress-thumb {
+  width: 9px;
+  height: 9px;
+  box-shadow: 0 0 14px rgba(244, 241, 235, 0.9);
+}
+
+.progress-times {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+}
+
+@media (max-width: 760px) {
+  .track-info {
+    margin-top: -6px;
+  }
+}

@@ -1,0 +1,31 @@
+.eyebrow {
+  margin-top: clamp(2px, 0.8vh, 10px);
+  margin-bottom: clamp(2px, 0.8vh, 8px);
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  transition: opacity 0.3s ease;
+  flex-shrink: 0;
+}
+
+.eyebrow.is-paused {
+  opacity: 0.55;
+}
+
+.on-air {
+  color: var(--soft);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.on-air i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #c4a081;
+  box-shadow: 0 0 14px rgba(196, 160, 129, 0.6);
+  animation: pulse 2s ease-in-out infinite;
+}

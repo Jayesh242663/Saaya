@@ -1,0 +1,59 @@
+.controls {
+  display: flex;
+  align-items: center;
+  gap: clamp(20px, 2.5vw, 32px);
+  margin-top: clamp(8px, 1.2vh, 16px);
+  margin-bottom: clamp(6px, 1vh, 12px);
+  flex-shrink: 0;
+}
+
+.control {
+  width: clamp(42px, 5.5vh, 50px);
+  height: clamp(42px, 5.5vh, 50px);
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--soft);
+  cursor: pointer;
+  border-radius: 50%;
+  transition: transform 0.25s ease, color 0.25s ease, background-color 0.25s ease;
+}
+
+.control:hover {
+  color: var(--ink);
+  transform: scale(1.12);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.control.primary {
+  width: clamp(58px, 7.8vh, 68px);
+  height: clamp(58px, 7.8vh, 68px);
+  border: 1.5px solid var(--line);
+  border-radius: 50%;
+  color: var(--ink);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55), 0 0 20px rgba(196, 160, 129, 0.08);
+  transition: transform 0.25s ease, border-color 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.control.primary:hover {
+  border-color: var(--ink);
+  transform: scale(1.08);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.7), 0 0 28px rgba(196, 160, 129, 0.16);
+}
+
+.control svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.control.primary svg {
+  width: 24px;
+  height: 24px;
+}

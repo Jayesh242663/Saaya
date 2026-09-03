@@ -1,0 +1,117 @@
+.broadcast-overlay {
+  position: absolute;
+  bottom: clamp(90px, 14vh, 120px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  width: min(90vw, 680px);
+  background: rgba(16, 16, 15, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(244, 241, 235, 0.18);
+  border-radius: 12px;
+  padding: 14px 20px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(196, 160, 129, 0.15);
+  animation: fadeInSubtitle 0.35s var(--ease) forwards;
+  pointer-events: none;
+}
+
+@keyframes fadeInSubtitle {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.broadcast-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.dj-mic-pulse {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+}
+
+.dj-mic-pulse .bar {
+  width: 2px;
+  background: #c4a081;
+  border-radius: 1px;
+  animation: wave 1.2s ease-in-out infinite alternate;
+}
+
+.dj-mic-pulse .bar-1 { height: 40%; animation-delay: 0.1s; }
+.dj-mic-pulse .bar-2 { height: 100%; animation-delay: 0.3s; }
+.dj-mic-pulse .bar-3 { height: 70%; animation-delay: 0.2s; }
+.dj-mic-pulse .bar-4 { height: 50%; animation-delay: 0.4s; }
+
+@keyframes wave {
+  0% { transform: scaleY(0.3); }
+  100% { transform: scaleY(1); }
+}
+
+.dj-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 8.5px;
+  letter-spacing: 0.2em;
+  color: #c4a081;
+  text-transform: uppercase;
+}
+
+.dj-emotional-state-pill {
+  font-family: 'DM Mono', monospace;
+  font-size: 7.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #fce2db;
+  background: rgba(196, 160, 129, 0.22);
+  border: 1px solid rgba(196, 160, 129, 0.45);
+  border-radius: 10px;
+  padding: 1.5px 7px;
+  animation: pulseGlow 2s ease-in-out infinite alternate;
+}
+
+@keyframes pulseGlow {
+  from {
+    box-shadow: 0 0 4px rgba(196, 160, 129, 0.2);
+  }
+  to {
+    box-shadow: 0 0 10px rgba(196, 160, 129, 0.55);
+  }
+}
+
+.dj-pause-indicator {
+  font-family: 'DM Mono', monospace;
+  font-size: 7.5px;
+  letter-spacing: 0.16em;
+  color: #a8a29e;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 1.5px 6px;
+}
+
+.broadcast-city {
+  margin-left: auto;
+  font-family: 'DM Mono', monospace;
+  font-size: 8px;
+  letter-spacing: 0.15em;
+  color: var(--muted);
+}
+
+.broadcast-subtitles {
+  margin: 0;
+  font-size: clamp(12px, 1.4vw, 13.5px);
+  line-height: 1.45;
+  color: var(--ink);
+  font-weight: 300;
+  letter-spacing: -0.01em;
+  font-style: italic;
+}
