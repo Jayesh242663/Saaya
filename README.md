@@ -35,10 +35,10 @@ npm install
 Create a `.env` file in the project root:
 
 ```env
-# Server-side TTS synthesis (never exposed to browser)
+# Server-side TTS synthesis 
 INWORLD_API_KEY=your_inworld_api_key_here
 
-# Optional LLM configuration (or configure directly in app Settings)
+# Optional LLM configuration
 LLM_PROVIDER=gemini
 GEMINI_API_KEY=your_gemini_api_key_here
 ```
