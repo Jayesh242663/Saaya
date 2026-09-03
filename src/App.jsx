@@ -13,7 +13,6 @@ import { Eyebrow } from './components/Eyebrow/Eyebrow';
 import { Carousel } from './components/Carousel/Carousel';
 import { TrackInfo } from './components/TrackInfo/TrackInfo';
 import { Controls } from './components/Controls/Controls';
-import { BroadcastOverlay } from './components/BroadcastOverlay/BroadcastOverlay';
 import { SettingsModal } from './components/Settings/SettingsModal';
 import { RoomModal } from './components/Room/RoomModal';
 import { YouTubeAudioPlayer } from './components/AudioPlayer/YouTubeAudioPlayer';
@@ -51,10 +50,12 @@ export default function App() {
   // AI Radio Host Orchestrator with curated broadcast support
   const {
     isDjSpeaking,
+    isIntroPreparing,
     spokenText,
     currentWeather,
     playShowIntro,
     playTransition,
+    preloadNextTransition,
     resetIntroState,
     stopDj
   } = useRadioShow({
@@ -199,9 +200,18 @@ export default function App() {
         setAppScreen('player');
         const firstSong = playlistData.tracks[0];
         if (firstSong) {
-          play();
           if (isAiDjEnabled) {
-            playShowIntro(firstSong);
+            playShowIntro(
+              firstSong,
+              () => {
+                // Start Song 1 ONLY after the intro monologue has completely finished!
+                play();
+              },
+              broadcastScript?.intro,
+              broadcastScript
+            );
+          } else {
+            play();
           }
         }
       }, 700);
@@ -289,11 +299,26 @@ export default function App() {
 
   const handlePrev = useCallback(() => {
     stopDj();
+    move(-1);
     const prevIndex = mod(current - 1, trackList.length);
     broadcastTrackChange(prevIndex);
-    move(-1);
     if (isPlaying) play();
-  }, [move, isPlaying, play, stopDj, current, trackList.length, broadcastTrackChange]);
+  }, [current, isPlaying, move, play, stopDj, trackList.length, broadcastTrackChange]);
+
+  // Pre-fetch and keep upcoming song's commentary on standby in memory while the current song is playing
+  useEffect(() => {
+    if (isPlaying && isAiDjEnabled && trackList.length > 1) {
+      const nextIndex = mod(current + 1, trackList.length);
+      const curr = trackList[current];
+      const nxt = trackList[nextIndex];
+      if (curr && nxt) {
+        const timer = setTimeout(() => {
+          preloadNextTransition(curr, nxt, current);
+        }, 2000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [current, isPlaying, isAiDjEnabled, trackList, preloadNextTransition]);
 
   const { targetPalette, gradient: backgroundGradient } = useThumbnailPalette(currentTrack);
   const city = apiConfig.getWeatherCity();
@@ -378,18 +403,12 @@ export default function App() {
 
             <Controls
               isPlaying={isPlaying || isDjSpeaking}
+              isLoading={isIntroPreparing}
               onPrev={handlePrev}
               onNext={handleNextWithTransition}
               onPlayPause={handleStartOrTogglePlay}
             />
           </section>
-
-          <BroadcastOverlay
-            isDjSpeaking={isDjSpeaking}
-            spokenText={spokenText}
-            city={city}
-            weather={currentWeather}
-          />
 
           <SettingsModal
             isOpen={isSettingsOpen}

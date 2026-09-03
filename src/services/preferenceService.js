@@ -67,10 +67,11 @@ export const DJ_PRESETS = {
 
 export const DEFAULT_PREFERENCES = {
   voiceId: 'Auto',
+  language: 'AUTO', // 'AUTO' | 'hi-IN' | 'mr-IN' | 'en-US'
   personality: 'late-night',
   energy: 'mellow',
   speakingRate: 1.0,
-  deliveryMode: 'BALANCED',
+  deliveryMode: 'CREATIVE',
   mentionSongArtist: true,
   explainTransitions: true,
   musicFacts: true,

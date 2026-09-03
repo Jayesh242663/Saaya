@@ -1,6 +1,6 @@
 import './Controls.css';
 
-export function Controls({ isPlaying, onPrev, onNext, onPlayPause }) {
+export function Controls({ isPlaying, isLoading = false, onPrev, onNext, onPlayPause }) {
   return (
     <div className="controls" aria-label="Playback controls">
       <button
@@ -17,18 +17,23 @@ export function Controls({ isPlaying, onPrev, onNext, onPlayPause }) {
 
       <button
         type="button"
-        className="control primary"
+        className={`control primary ${isLoading ? 'is-loading' : ''}`}
         id="playBtn"
-        aria-label={isPlaying ? 'Pause radio' : 'Play radio'}
+        aria-label={isLoading ? 'Tuning intro' : isPlaying ? 'Pause radio' : 'Play radio'}
         onClick={onPlayPause}
+        disabled={isLoading}
       >
-        <svg id="playIcon" viewBox="0 0 24 24" aria-hidden="true">
-          {isPlaying ? (
-            <path d="M8 5v14M16 5v14" />
-          ) : (
-            <path d="M8 5l10 7-10 7V5z" />
-          )}
-        </svg>
+        {isLoading ? (
+          <span className="control-spinner" aria-hidden="true" />
+        ) : (
+          <svg id="playIcon" viewBox="0 0 24 24" aria-hidden="true">
+            {isPlaying ? (
+              <path d="M8 5v14M16 5v14" />
+            ) : (
+              <path d="M8 5l10 7-10 7V5z" />
+            )}
+          </svg>
+        )}
       </button>
 
       <button

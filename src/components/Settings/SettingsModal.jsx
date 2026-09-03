@@ -138,12 +138,48 @@ export function SettingsModal({ isOpen, onClose }) {
             <h3>Radio voice</h3>
             <div className="setting">
               <span>
+                Broadcast language
+                <small>
+                  {preferences.language === 'hi-IN'
+                    ? 'Hindi (हिंदी)'
+                    : preferences.language === 'mr-IN'
+                    ? 'Marathi (मराठी)'
+                    : preferences.language === 'en-US'
+                    ? 'English'
+                    : 'Auto (Match playlist)'}
+                </small>
+              </span>
+              <select
+                value={preferences.language || 'AUTO'}
+                onChange={(e) => {
+                  const newLang = e.target.value;
+                  updatePreference('language', newLang);
+                  if (newLang === 'hi-IN' || newLang === 'mr-IN') {
+                    updatePreference('voiceId', 'Meher');
+                  }
+                }}
+                aria-label="Broadcast language"
+              >
+                <option value="AUTO">Auto (Match playlist)</option>
+                <option value="hi-IN">Hindi (हिंदी)</option>
+                <option value="mr-IN">Marathi (मराठी)</option>
+                <option value="en-US">English</option>
+              </select>
+            </div>
+            <div className="setting">
+              <span>
                 Host voice
                 <small>{preferences.voiceId === 'Auto' ? 'Smart (Meher/Blake/Sarah)' : preferences.voiceId}</small>
               </span>
               <select
                 value={preferences.voiceId || 'Auto'}
-                onChange={(e) => updatePreference('voiceId', e.target.value)}
+                onChange={(e) => {
+                  const newVoice = e.target.value;
+                  updatePreference('voiceId', newVoice);
+                  if (newVoice === 'Meher' && preferences.language === 'en-US') {
+                    updatePreference('language', 'hi-IN');
+                  }
+                }}
                 aria-label="Host voice"
               >
                 <option value="Auto">Auto (Smart selection)</option>
@@ -153,17 +189,30 @@ export function SettingsModal({ isOpen, onClose }) {
               </select>
             </div>
             <div className="setting">
-              <span>DJ tone</span>
+              <span>
+                DJ personality
+                <small>
+                  {preferences.personality === 'warm'
+                    ? 'Warm & Heartfelt — Friendly, personal, welcoming'
+                    : preferences.personality === 'calm'
+                    ? 'Tranquil & Meditative — Soothing, mindful serenity'
+                    : preferences.personality === 'energetic'
+                    ? 'Vibrant & Dynamic — Lively, passionate enthusiasm'
+                    : preferences.personality === 'elegant'
+                    ? 'Refined & Cultured — Poetic lore, sophisticated depth'
+                    : 'Late Night Companion — Intimate, nocturnal, mellow'}
+                </small>
+              </span>
               <select
                 value={preferences.personality || 'late-night'}
                 onChange={(e) => updatePreference('personality', e.target.value)}
-                aria-label="DJ tone"
+                aria-label="DJ personality"
               >
-                <option value="late-night">Late night</option>
-                <option value="warm">Warm</option>
-                <option value="calm">Calm</option>
-                <option value="elegant">Elegant</option>
-                <option value="energetic">Energetic</option>
+                <option value="late-night">Late Night Companion (Nocturnal & Intimate)</option>
+                <option value="warm">Warm & Heartfelt (Friendly & Welcoming)</option>
+                <option value="calm">Tranquil & Meditative (Soothing & Peaceful)</option>
+                <option value="elegant">Refined & Cultured (Poetic & Sophisticated)</option>
+                <option value="energetic">Vibrant & Dynamic (Upbeat & Passionate)</option>
               </select>
             </div>
           </div>

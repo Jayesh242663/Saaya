@@ -57,3 +57,26 @@
   width: 24px;
   height: 24px;
 }
+
+.control.primary.is-loading {
+  cursor: wait;
+  opacity: 0.9;
+}
+
+.control-spinner {
+  width: 20px;
+  height: 20px;
+  border: 1.8px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--ink);
+  border-radius: 50%;
+  animation: control-spin 0.75s cubic-bezier(0.4, 0.1, 0.2, 1) infinite;
+}
+
+@keyframes control-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

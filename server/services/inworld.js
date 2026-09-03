@@ -68,8 +68,8 @@ export class InworldService {
 
     // Resolve voice: use Meher for Hindi/Marathi, or user's requested voice
     let requestedVoice = request.voiceId;
-    if (!requestedVoice || language === 'hi-IN' || language === 'mr-IN') {
-      requestedVoice = (language === 'hi-IN' || language === 'mr-IN') ? 'Meher' : (requestedVoice || 'Meher');
+    if (!requestedVoice || requestedVoice.toLowerCase() === 'auto' || language === 'hi-IN' || language === 'mr-IN') {
+      requestedVoice = (language === 'hi-IN' || language === 'mr-IN') ? 'Meher' : (requestedVoice && requestedVoice.toLowerCase() !== 'auto' ? requestedVoice : 'Sarah');
     }
 
     const voice = getVoiceById(requestedVoice);
@@ -80,8 +80,10 @@ export class InworldService {
     const personalityConfig = personalityMap[personality] || personalityMap['calm'];
 
     const baseRate = typeof request.speakingRate === 'number' && request.speakingRate > 0 ? request.speakingRate : 1.0;
-    const finalSpeakingRate = Math.max(0.5, Math.min(2.0, baseRate * (personalityConfig.rateModifier || 1.0)));
-    const deliveryMode = request.deliveryMode || voice.defaultDeliveryMode || 'BALANCED';
+    const finalSpeakingRate = Number(baseRate.toFixed(2));
+    const deliveryMode = request.deliveryMode || personalityConfig.deliveryMode || voice.defaultDeliveryMode || 'CREATIVE';
+
+    const cleanSpeechText = text.replace(/\[.*?\]/g, '').replace(/[*#_~`"«»“”]/g, '').replace(/\s+/g, ' ').trim();
 
     const apiKey = this.getApiKey();
     if (!apiKey) {
@@ -98,7 +100,7 @@ export class InworldService {
       : `Basic ${cleanedKey}`;
 
     const payload = {
-      text,
+      text: cleanSpeechText,
       voiceId: inworldVoiceId,
       modelId: 'inworld-tts-2',
       timestampType: 'WORD',

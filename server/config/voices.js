@@ -49,6 +49,8 @@ export const VOICES = [
 
 export function getVoiceById(id) {
   const clean = (id || '').trim().toLowerCase();
+  if (clean === 'auto' || !clean) return VOICES[0];
+
   const match = VOICES.find(
     (v) => v.id.toLowerCase() === clean ||
            v.inworldVoiceName.toLowerCase() === clean

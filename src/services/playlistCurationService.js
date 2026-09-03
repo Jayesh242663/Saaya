@@ -10,6 +10,7 @@
  */
 
 import { apiConfig } from '../config/apiConfig.js';
+import { preferenceService } from './preferenceService.js';
 import { proceduralCommentary } from './proceduralCommentary.js';
 import { voiceResolverService } from './voiceResolverService.js';
 
@@ -26,20 +27,31 @@ export const playlistCurationService = {
         videoId = u.split('/embed/')[1]?.split(/[?#&]/)[0];
       }
       if (videoId && /^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+        const prefs = preferenceService.getPreferences();
+        let langCode = 'en-US';
+        let langName = 'English';
+        if (prefs?.language === 'hi-IN' || prefs?.voiceId === 'Meher') {
+          langCode = 'hi-IN';
+          langName = 'Hindi';
+        } else if (prefs?.language === 'mr-IN') {
+          langCode = 'mr-IN';
+          langName = 'Marathi';
+        }
+
         return {
           title: 'YouTube Stream',
           source: 'youtube-direct',
           trackCount: 1,
-          dominantLanguage: 'en-US',
-          dominantLanguageName: 'English',
+          dominantLanguage: langCode,
+          dominantLanguageName: langName,
           tracks: [
             {
               id: `yt-direct-${videoId}`,
               title: 'YouTube Broadcast',
               artist: 'Featured Stream',
               youtubeId: videoId,
-              language: 'English',
-              languageCode: 'en-US',
+              language: langName,
+              languageCode: langCode,
               meta: 'LIVE STREAM',
               art: 'radial-gradient(circle at 50% 50%, #2e1065, #050505)',
               core: '#7c3aed',

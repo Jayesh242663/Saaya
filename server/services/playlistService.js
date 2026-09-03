@@ -66,14 +66,16 @@ export function detectTrackLanguage(title = '', artist = '') {
 
   // Common Marathi artists and keywords
   const marathiArtists = [
-    'ajay-atul', 'swapnil bandodkar', 'avdhoot gupte', 'mahesh kale', 'rahul deshponde',
+    'ajay-atul', 'ajay atul', 'swapnil bandodkar', 'avdhoot gupte', 'mahesh kale', 'rahul deshponde',
     'arya ambekar', 'suresh wadkar', 'anand shinde', 'milind shinde', 'adarsh shinde',
-    'pravin koli', 'sonalee kulkarni', 'chinmay mandlekar', 'subodh bhave', 'ketaki mategaonkar'
+    'pravin koli', 'sonalee kulkarni', 'chinmay mandlekar', 'subodh bhave', 'ketaki mategaonkar',
+    'kartiki gaikwad', 'prathamesh laghate', 'mugdha vaishampayan', 'hridyanath mangeshkar',
+    'sudhir phadke', 'vasantrao deshponde', 'arun date', 'suresh bhat', 'bela shende'
   ];
   const marathiKeywords = [
     'deh', 'petude', 'vitthal', 'vitthala', 'ambabai', 'gondhal', 'gondhalala', 'shambho', 'sambhaji',
     'shivaji', 'chhatrapati', 'maharaj', 'marathi', 'poshter', 'abhaal', 'jhunzaar', 'veer',
-    'bhavgeet', 'abhang', 'lavani', 'povada', 'koli', 'sairat', 'zingaat', 'yad', 'yed', 'ved',
+    'bhavgeet', 'natyageet', 'abhang', 'lavani', 'povada', 'koli', 'sairat', 'zingaat', 'yad', 'yed', 'ved',
     'mala', 'tula', 'aala', 'gela', 'zhala', 'jhala', 'majha', 'tujha', 'raja', 'aai', 'ambe',
     'jagdambe', 'rakhumai', 'pandurang', 'mauli', 'vithu', 'bhivra', 'ashadhi', 'pandharpur',
     'pawankhind', 'paavankhind', 'swarajya', 'gad', 'durg', 'bhavani', 'tulja', 'shantata',
@@ -82,7 +84,8 @@ export function detectTrackLanguage(title = '', artist = '') {
     'hambir', 'dharmaveer', 'thumkat', 'naar', 'payee', 'fufata', 'mati', 'maai', 'naad', 'ninaadala',
     'shriranga', 'bappa', 'ganpati', 'morya', 'koliwada', 'nauvari', 'kolhapur', 'satara', 'sahyadri',
     'maharashtra', 'jhopala', 'bhetali', 'tuzyat', 'sangana', 'laadla', 'laadki', 'khari', 'por',
-    'kasa', 'kashi', 'tashi', 'jashi', 'tuzya', 'majhya', 'man', 'shuddha', 'hoshiyaar'
+    'kasa', 'kashi', 'tashi', 'jashi', 'tuzya', 'majhya', 'man', 'shuddha', 'hoshiyaar',
+    'man udhan', 'varyache', 'govyachya', 'kinaryav', 'saad', 'aata vajle ki bara', 'dhagaala lagli'
   ];
 
   for (const ma of marathiArtists) {
@@ -93,14 +96,31 @@ export function detectTrackLanguage(title = '', artist = '') {
     if (reg.test(combined)) return { code: 'mr-IN', name: 'Marathi' };
   }
 
-  // Common Hindi / Indian Indie artist or keyword check
+  // Common Hindi / Indian Indie / Bollywood artist or keyword check
   const hindiArtists = [
     'anuv jain', 'prateek kuhad', 'arijit singh', 'the local train', 'atif aslam',
-    'kk', 'sonu nigam', 'shreya ghoshal', 'mohit chauhan', 'ar rahman', 'lucky ali',
+    'kk', 'sonu nigam', 'shreya ghoshal', 'mohit chauhan', 'ar rahman', 'a.r. rahman', 'lucky ali',
     'darshan raval', 'zaeden', 'vishal mishra', 'king', 'babil khan', 'jasleen royal',
-    'jubin nautiyal', 'amit trivedi', 'papon', 'sanam', 'shankar mahadevan'
+    'jubin nautiyal', 'amit trivedi', 'papon', 'sanam', 'shankar mahadevan', 'shankar-ehsaan-loy',
+    'shankar ehsaan loy', 'vishal-shekhar', 'vishal dadlani', 'shekhar ravjiani', 'sachin-jigar',
+    'shilpa rao', 'sunidhi chauhan', 'alka yagnik', 'udit narayan', 'kumar sanu', 'jagjit singh',
+    'pankaj udhas', 'lata mangeshkar', 'asha bhosle', 'kishore kumar', 'mohammed rafi', 'mukesh',
+    'manna dey', 'rd burman', 'r.d. burman', 'sd burman', 'neha kakkar', 'tony kakkar', 'badshah',
+    'yo yo honey singh', 'honey singh', 'armaan malik', 'amaal mallik', 'mithoon', 'rochak kohli',
+    'tanishk bagchi', 'tulsi kumar', 'b praak', 'jaani', 'monali thakur', 'ali zafar',
+    'shafqat amanat ali', 'rahat fateh ali khan', 'nusrat fateh ali khan', 'javed ali', 'kailash kher',
+    'sukhwinder singh', 'shaan', 'pritam'
   ];
-  const hindiKeywords = ['baarishein', 'husn', 'kasoor', 'choo lo', 'alvida', 'dil', 'pyaar', 'ishq', 'tere', 'mere', 'tum', 'safar', 'zindagi', 'kho gaye', 'humdum'];
+  const hindiKeywords = [
+    'baarishein', 'husn', 'kasoor', 'choo lo', 'alvida', 'dil', 'pyaar', 'ishq', 'tere', 'mere',
+    'tum', 'safar', 'zindagi', 'kho gaye', 'humdum', 'kesariya', 'channa', 'channa mereya', 'tum mile',
+    'kahani', 'geet', 'raat', 'chaand', 'hawa', 'barsaat', 'naina', 'deewana', 'mohabbat', 'sanam',
+    'dhadkan', 'khuda', 'dua', 'humsafar', 'raabta', 'kabira', 'ilahi', 'agar tum', 'apna bana le',
+    'pehla nasha', 'pehli nazar', 'saathiya', 'tum hi ho', 'tera ban jaunga', 'shayad', 'hawayein',
+    'muskurane', 'chaleya', 'lut gaye', 'aaye na balam', 'aaj din chadheya', 'tujh mein rab',
+    'kal ho naa ho', 'suraj hua maddham', 'mitwa', 'chup chup ke', 'jashn-e-bahara', 'kun faya kun',
+    'ranjha', 'shershaah', 'bollywood', 'aashiqui', 'khairiyat', 'tujhe kitna chahein'
+  ];
 
   for (const a of hindiArtists) {
     if (combined.includes(a)) return { code: 'hi-IN', name: 'Hindi' };
@@ -144,16 +164,17 @@ export function computeDominantLanguage(tracks = [], playlistTitle = '') {
   if (/[\u0900-\u097F]/.test(playlistTitle) || /\b(marathi|deh|petude|vitthal|ambabai|gondhal|sairat|abhang|bhavgeet|maharashtra|shivaji|sambhaji)\b/i.test(playlistTitle)) {
     if (!tally['mr-IN']) tally['mr-IN'] = { code: 'mr-IN', name: 'Marathi', count: 0 };
     tally['mr-IN'].count += 100;
-  } else if (/\b(hindi|bollywood|hindustani)\b/i.test(playlistTitle)) {
+  } else if (/\b(hindi|bollywood|hindustani|desi|indian)\b/i.test(playlistTitle)) {
     if (!tally['hi-IN']) tally['hi-IN'] = { code: 'hi-IN', name: 'Hindi', count: 0 };
     tally['hi-IN'].count += 100;
   }
 
-  // If there are significant Marathi tracks (e.g. 5 or more), this is clearly a Marathi playlist
-  if (tally['mr-IN'] && tally['mr-IN'].count >= 5) {
-    tally['mr-IN'].count += 200;
-  } else if (tally['hi-IN'] && tally['hi-IN'].count >= 5) {
-    tally['hi-IN'].count += 200;
+  // If there are significant Marathi or Hindi tracks, decisively prioritize native host
+  if (tally['mr-IN'] && tally['mr-IN'].count >= 2) {
+    tally['mr-IN'].count += 50;
+  }
+  if (tally['hi-IN'] && tally['hi-IN'].count >= 2) {
+    tally['hi-IN'].count += 50;
   }
 
   const sorted = Object.values(tally).sort((a, b) => b.count - a.count);

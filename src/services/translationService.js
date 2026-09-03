@@ -12,12 +12,6 @@ import { proceduralCommentary } from './proceduralCommentary.js';
 export function sanitizeForTts(text) {
   if (!text) return '';
   return text
-    // Convert emotional pauses into real prosodic breath and dramatic silence for the TTS engine
-    .replace(/\[(?:longer dramatic pause|long dramatic pause|dramatic pause)\]/gi, '... , , ...')
-    .replace(/\[(?:short pause|pause)\]/gi, '... , ...')
-    .replace(/\[music transition\]/gi, '... ')
-    // Strip emotional delivery state tags (e.g. [warm], [playful], [smiling]) so they aren't spoken as words
-    .replace(/\[.*?\]/g, '')
     .replace(/[*#_~`"«»“”]/g, '')
     .replace(/\s+/g, ' ')
     .replace(/\b([0-9]{1,2}):([0-9]{2})\s*(AM|am)\b/g, '$1 बजके $2 मिनट सुबह')

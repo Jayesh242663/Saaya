@@ -28,6 +28,11 @@ export function useRadioShow({ setAudioVolume, curatedBroadcast }) {
     };
   }, []);
 
+  const curatedBroadcastRef = useRef(curatedBroadcast);
+  useEffect(() => {
+    curatedBroadcastRef.current = curatedBroadcast;
+  }, [curatedBroadcast]);
+
   // Allow resetting intro when a custom playlist is loaded
   const resetIntroState = useCallback(() => {
     hasIntroPlayedRef.current = false;
@@ -46,9 +51,12 @@ export function useRadioShow({ setAudioVolume, curatedBroadcast }) {
     }
   }, [setAudioVolume]);
 
+  const [isIntroPreparing, setIsIntroPreparing] = useState(false);
+  const standbyTransitionRef = useRef(null);
+
   // Start the radio show with an AI host intro - only start music AFTER intro completes
   const playShowIntro = useCallback(
-    async (firstTrack, onIntroComplete, overrideIntro) => {
+    async (firstTrack, onIntroComplete, overrideIntro, overrideBroadcast = null) => {
       if (!apiConfig.isAiDjEnabled()) {
         setShowPhase('music');
         restoreMusic();
@@ -62,6 +70,7 @@ export function useRadioShow({ setAudioVolume, curatedBroadcast }) {
       }
       hasIntroPlayedRef.current = true;
 
+      setIsIntroPreparing(true);
       const city = apiConfig.getWeatherCity();
       setShowPhase('intro');
       duckMusic();
@@ -70,14 +79,31 @@ export function useRadioShow({ setAudioVolume, curatedBroadcast }) {
         const weather = await weatherService.getWeather(city);
         setCurrentWeather(weather);
 
-        const targetLanguage =
-          curatedBroadcast?.dominantLanguage ||
-          firstTrack?.languageCode ||
-          (firstTrack?.language === 'Hindi' ? 'hi-IN' : firstTrack?.language === 'Marathi' ? 'mr-IN' : 'en-US');
+        const broadcast = overrideBroadcast || curatedBroadcast || curatedBroadcastRef.current;
+        const prefs = preferenceService.getPreferences();
 
-        let rawScript = overrideIntro || curatedBroadcast?.intro;
+        // Determine target language with rock-solid precedence:
+        // Priority 1: User's explicit setting in Settings
+        // Priority 2: Curated broadcast dominant language
+        // Priority 3: Track metadata or voice mapping
+        let targetLanguage = 'en-US';
+        if (prefs?.language && prefs.language !== 'AUTO') {
+          targetLanguage = prefs.language;
+        } else if (broadcast?.dominantLanguage) {
+          targetLanguage = broadcast.dominantLanguage;
+        } else if (firstTrack?.languageCode) {
+          targetLanguage = firstTrack.languageCode;
+        } else if (firstTrack?.language === 'Hindi') {
+          targetLanguage = 'hi-IN';
+        } else if (firstTrack?.language === 'Marathi') {
+          targetLanguage = 'mr-IN';
+        } else if (prefs.voiceId === 'Meher') {
+          targetLanguage = 'hi-IN';
+        }
+
+        let rawScript = overrideIntro || broadcast?.intro;
         if (!rawScript) {
-          rawScript = await geminiService.generateIntro(weather, firstTrack);
+          rawScript = await geminiService.generateIntro(weather, firstTrack, { ...prefs, language: targetLanguage });
         }
 
         // Pre-TTS Translation and phonetic script preparation stage
@@ -89,22 +115,22 @@ export function useRadioShow({ setAudioVolume, curatedBroadcast }) {
         });
 
         setSpokenText(script);
-        setIsDjSpeaking(true);
 
-        const prefs = preferenceService.getPreferences();
         const activeVoice = voiceResolverService.resolveVoice(
           prefs.voiceId,
-          curatedBroadcast?.tracks || [firstTrack],
+          broadcast?.tracks || [firstTrack],
           targetLanguage
         );
 
         await inworldService.speak(
           script,
           () => {
+            setIsIntroPreparing(false);
             setIsDjSpeaking(true);
             duckMusic();
           },
           () => {
+            setIsIntroPreparing(false);
             setIsDjSpeaking(false);
             setSpokenText('');
             setShowPhase('music');
@@ -114,11 +140,13 @@ export function useRadioShow({ setAudioVolume, curatedBroadcast }) {
           },
           {
             language: targetLanguage,
-            voiceId: curatedBroadcast?.djVoice || activeVoice
+            voiceId: broadcast?.djVoice || activeVoice,
+            tracks: broadcast?.tracks || [firstTrack]
           }
         );
       } catch (err) {
         console.warn('Intro speech failed:', err);
+        setIsIntroPreparing(false);
         setIsDjSpeaking(false);
         setSpokenText('');
         setShowPhase('music');
@@ -129,6 +157,75 @@ export function useRadioShow({ setAudioVolume, curatedBroadcast }) {
     [duckMusic, restoreMusic, curatedBroadcast]
   );
 
+  // Pre-synthesize the upcoming transition and keep on standby in memory while the current song plays
+  const preloadNextTransition = useCallback(
+    async (currentTrack, nextTrack, transitionIndex) => {
+      if (!apiConfig.isAiDjEnabled() || !currentTrack || !nextTrack) return;
+      try {
+        const city = apiConfig.getWeatherCity();
+        const weather = await weatherService.getWeather(city);
+        const broadcast = curatedBroadcast || curatedBroadcastRef.current;
+        const prefs = preferenceService.getPreferences();
+
+        let targetLanguage = 'en-US';
+        if (prefs?.language && prefs.language !== 'AUTO') {
+          targetLanguage = prefs.language;
+        } else if (broadcast?.dominantLanguage) {
+          targetLanguage = broadcast.dominantLanguage;
+        } else if (nextTrack?.languageCode) {
+          targetLanguage = nextTrack.languageCode;
+        } else if (nextTrack?.language === 'Hindi') {
+          targetLanguage = 'hi-IN';
+        } else if (nextTrack?.language === 'Marathi') {
+          targetLanguage = 'mr-IN';
+        } else if (prefs.voiceId === 'Meher') {
+          targetLanguage = 'hi-IN';
+        }
+
+        let rawScript = null;
+        if (broadcast?.transitions && typeof transitionIndex === 'number') {
+          rawScript = broadcast.transitions[transitionIndex];
+        }
+        if (!rawScript) {
+          rawScript = await geminiService.generateTransition(currentTrack, nextTrack, weather, {
+            ...prefs,
+            language: targetLanguage
+          });
+        }
+
+        const script = await translationService.prepareScriptForTts({
+          rawScript,
+          targetLanguage,
+          track: nextTrack,
+          weather
+        });
+
+        const activeVoice = voiceResolverService.resolveVoice(
+          prefs.voiceId,
+          broadcast?.tracks || [nextTrack],
+          targetLanguage
+        );
+
+        const preloaded = await inworldService.preSynthesize(script, {
+          language: targetLanguage,
+          voiceId: broadcast?.djVoice || activeVoice,
+          tracks: broadcast?.tracks || [nextTrack]
+        });
+
+        if (preloaded) {
+          standbyTransitionRef.current = {
+            key: `${currentTrack?.id || currentTrack?.title}->${nextTrack?.id || nextTrack?.title}`,
+            script,
+            preloaded
+          };
+        }
+      } catch (err) {
+        console.warn('Standby transition preload note:', err);
+      }
+    },
+    [curatedBroadcast]
+  );
+
   // Play DJ commentary transition between current track and upcoming track
   const playTransition = useCallback(
     async (currentTrack, nextTrack, onTransitionComplete, transitionIndex, overrideTransition) => {
@@ -137,26 +234,65 @@ export function useRadioShow({ setAudioVolume, curatedBroadcast }) {
         return;
       }
 
-      const city = apiConfig.getWeatherCity();
       setShowPhase('transition');
       duckMusic();
 
       try {
+        const transitionKey = `${currentTrack?.id || currentTrack?.title}->${nextTrack?.id || nextTrack?.title}`;
+        const standby = standbyTransitionRef.current;
+
+        // Instantaneous playback if next commentary is already on standby in memory
+        if (standby && standby.key === transitionKey && standby.preloaded) {
+          setSpokenText(standby.script);
+          setIsDjSpeaking(true);
+          standbyTransitionRef.current = null; // consume standby
+
+          await inworldService.playPreloaded(
+            standby.preloaded,
+            () => {
+              setIsDjSpeaking(true);
+              duckMusic();
+            },
+            () => {
+              setIsDjSpeaking(false);
+              setSpokenText('');
+              setShowPhase('music');
+              restoreMusic();
+              if (onTransitionComplete) onTransitionComplete();
+            }
+          );
+          return;
+        }
+
+        const city = apiConfig.getWeatherCity();
         const weather = await weatherService.getWeather(city);
         setCurrentWeather(weather);
 
-        const targetLanguage =
-          curatedBroadcast?.dominantLanguage ||
-          nextTrack?.languageCode ||
-          (nextTrack?.language === 'Hindi' ? 'hi-IN' : nextTrack?.language === 'Marathi' ? 'mr-IN' : 'en-US');
+        const broadcast = curatedBroadcast || curatedBroadcastRef.current;
+        const prefs = preferenceService.getPreferences();
+
+        let targetLanguage = 'en-US';
+        if (prefs?.language && prefs.language !== 'AUTO') {
+          targetLanguage = prefs.language;
+        } else if (broadcast?.dominantLanguage) {
+          targetLanguage = broadcast.dominantLanguage;
+        } else if (nextTrack?.languageCode) {
+          targetLanguage = nextTrack.languageCode;
+        } else if (nextTrack?.language === 'Hindi') {
+          targetLanguage = 'hi-IN';
+        } else if (nextTrack?.language === 'Marathi') {
+          targetLanguage = 'mr-IN';
+        } else if (prefs.voiceId === 'Meher') {
+          targetLanguage = 'hi-IN';
+        }
 
         // Check if pre-curated transition exists for this transition index
         let rawScript = overrideTransition;
-        if (!rawScript && curatedBroadcast?.transitions && typeof transitionIndex === 'number') {
-          rawScript = curatedBroadcast.transitions[transitionIndex];
+        if (!rawScript && broadcast?.transitions && typeof transitionIndex === 'number') {
+          rawScript = broadcast.transitions[transitionIndex];
         }
         if (!rawScript) {
-          rawScript = await geminiService.generateTransition(currentTrack, nextTrack, weather);
+          rawScript = await geminiService.generateTransition(currentTrack, nextTrack, weather, { ...prefs, language: targetLanguage });
         }
 
         // Pre-TTS Translation and phonetic script preparation stage
@@ -170,10 +306,9 @@ export function useRadioShow({ setAudioVolume, curatedBroadcast }) {
         setSpokenText(script);
         setIsDjSpeaking(true);
 
-        const prefs = preferenceService.getPreferences();
         const activeVoice = voiceResolverService.resolveVoice(
           prefs.voiceId,
-          curatedBroadcast?.tracks || [nextTrack],
+          broadcast?.tracks || [nextTrack],
           targetLanguage
         );
 
@@ -193,7 +328,8 @@ export function useRadioShow({ setAudioVolume, curatedBroadcast }) {
           },
           {
             language: targetLanguage,
-            voiceId: curatedBroadcast?.djVoice || activeVoice
+            voiceId: broadcast?.djVoice || activeVoice,
+            tracks: broadcast?.tracks || [nextTrack]
           }
         );
       } catch (err) {
@@ -210,6 +346,7 @@ export function useRadioShow({ setAudioVolume, curatedBroadcast }) {
 
   const stopDj = useCallback(() => {
     inworldService.stop();
+    setIsIntroPreparing(false);
     setIsDjSpeaking(false);
     setSpokenText('');
     restoreMusic();
@@ -217,11 +354,13 @@ export function useRadioShow({ setAudioVolume, curatedBroadcast }) {
 
   return {
     isDjSpeaking,
+    isIntroPreparing,
     spokenText,
     showPhase,
     currentWeather,
     playShowIntro,
     playTransition,
+    preloadNextTransition,
     resetIntroState,
     stopDj
   };

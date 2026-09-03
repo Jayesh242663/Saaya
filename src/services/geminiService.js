@@ -14,9 +14,24 @@ function resolveTargetLanguage(prefs, track) {
   return prefs?.language || 'en-US';
 }
 
+const PERSONALITY_PROMPTS = {
+  'late-night':
+    'Personality: Late Night Companion. Speak with intimate nocturnal warmth, poetic stillness, and gentle reflective empathy. Acknowledge the late hour, quiet streets, and emotional solace of the music.',
+  'warm':
+    'Personality: Warm & Heartfelt. Speak like a cherished, sincere friend welcoming the listener with genuine warmth, conversational optimism, and infectious human kindness.',
+  'calm':
+    'Personality: Tranquil & Meditative. Speak with peaceful composure, mindful presence, and soothing serenity. Avoid rush, hype, or loud enthusiasm; create a comforting acoustic sanctuary.',
+  'energetic':
+    'Personality: Vibrant & Dynamic. Speak with electric passion, witty charm, and vibrant musical excitement, celebrating the rhythm, beat, and groove of the track.',
+  'elegant':
+    'Personality: Refined & Cultured. Speak with sophisticated eloquence, poetic lyricism, and deep reverence for musical artistry, heritage, and recording lore.'
+};
+
 function buildBehaviorInstructions(prefs, targetLang = 'en-US') {
   const instructions = [];
-  instructions.push(`Personality: ${prefs.personality || 'late-night'}. Energy level: ${prefs.energy || 'mellow'}.`);
+  const personalityKey = prefs.personality || 'late-night';
+  instructions.push(PERSONALITY_PROMPTS[personalityKey] || PERSONALITY_PROMPTS['late-night']);
+  instructions.push(`Energy level: ${prefs.energy || 'mellow'}.`);
 
   if (targetLang === 'hi-IN') {
     instructions.push('Language: Speak in authentic, warm, and poetic Hindi strictly in DEVANAGARI SCRIPT (हिंदी लिपि). Do not use Latin/English letters so Text-To-Speech pronounces it fluently.');
