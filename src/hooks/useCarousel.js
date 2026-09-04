@@ -2,7 +2,27 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 export const mod = (n, m) => ((n % m) + m) % m;
 
-export function useCarousel(tracksCount = 7, windowRadius = 4) {
+export function useCarousel(tracksCount = 7, windowRadius = 4, options = {}) {
+  const opts =
+    typeof windowRadius === 'object' && windowRadius !== null
+      ? windowRadius
+      : typeof options === 'object' && options !== null
+      ? options
+      : {};
+  const actualRadius = typeof windowRadius === 'number' ? windowRadius : 4;
+  const { onNext, onPrev } = opts;
+
+  const onNextRef = useRef(onNext);
+  const onPrevRef = useRef(onPrev);
+
+  useEffect(() => {
+    onNextRef.current = onNext;
+  }, [onNext]);
+
+  useEffect(() => {
+    onPrevRef.current = onPrev;
+  }, [onPrev]);
+
   const [virtualIndex, setVirtualIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
@@ -39,8 +59,14 @@ export function useCarousel(tracksCount = 7, windowRadius = 4) {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
-      if (e.key === 'ArrowLeft') move(-1);
-      if (e.key === 'ArrowRight') move(1);
+      if (e.key === 'ArrowLeft') {
+        if (typeof onPrevRef.current === 'function') onPrevRef.current();
+        else move(-1);
+      }
+      if (e.key === 'ArrowRight') {
+        if (typeof onNextRef.current === 'function') onNextRef.current();
+        else move(1);
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -53,7 +79,14 @@ export function useCarousel(tracksCount = 7, windowRadius = 4) {
       if (wheelLockedRef.current || (Math.abs(e.deltaY) < 12 && Math.abs(e.deltaX) < 12)) return;
       e.preventDefault();
       wheelLockedRef.current = true;
-      move(e.deltaY + e.deltaX > 0 ? 1 : -1);
+      const dir = e.deltaY + e.deltaX > 0 ? 1 : -1;
+      if (dir === 1 && typeof onNextRef.current === 'function') {
+        onNextRef.current();
+      } else if (dir === -1 && typeof onPrevRef.current === 'function') {
+        onPrevRef.current();
+      } else {
+        move(dir);
+      }
 
       if (wheelTimeoutRef.current) clearTimeout(wheelTimeoutRef.current);
       wheelTimeoutRef.current = setTimeout(() => {
@@ -123,7 +156,13 @@ export function useCarousel(tracksCount = 7, windowRadius = 4) {
       setIsDragging(false);
 
       if (shouldAdvance) {
-        move(direction);
+        if (direction === 1 && typeof onNextRef.current === 'function') {
+          onNextRef.current();
+        } else if (direction === -1 && typeof onPrevRef.current === 'function') {
+          onPrevRef.current();
+        } else {
+          move(direction);
+        }
       }
 
       if (
@@ -156,51 +195,41 @@ export function useCarousel(tracksCount = 7, windowRadius = 4) {
     (slotIndex, windowWidth = typeof window !== 'undefined' ? window.innerWidth : 1200) => {
       const d = slotIndex - virtualIndex;
       const abs = Math.abs(d);
-      const spacing = Math.min(210, Math.max(130, windowWidth * 0.15));
+      const spacing = Math.min(220, Math.max(135, windowWidth * 0.16));
       const x = d * spacing;
 
-      let size = 'clamp(170px, min(27vw, 29vh), 310px)';
+      // Consistent base size ensures zero width/height layout reflows during transitions
+      const size = 'clamp(180px, min(28vw, 30vh), 320px)';
+
       let scale = 1;
       let opacity = 1;
-      let blur = '0px';
 
       if (abs === 0) {
-        size = 'clamp(170px, min(27vw, 29vh), 310px)';
         scale = 1;
         opacity = 1;
-        blur = '0px';
       } else if (abs === 1) {
-        size = 'clamp(100px, min(15vw, 17vh), 170px)';
-        scale = 0.82;
-        opacity = 0.63;
-        blur = '0.35px';
+        scale = 0.62;
+        opacity = 0.68;
       } else if (abs === 2) {
-        size = 'clamp(70px, min(10vw, 12vh), 120px)';
-        scale = 0.58;
-        opacity = 0.27;
-        blur = '1px';
+        scale = 0.40;
+        opacity = 0.30;
       } else if (abs === 3) {
-        size = 'clamp(50px, min(8vw, 9vh), 90px)';
-        scale = 0.42;
-        opacity = 0.08;
-        blur = '2px';
+        scale = 0.26;
+        opacity = 0.10;
       } else {
-        size = 'clamp(40px, min(6vw, 7vh), 70px)';
-        scale = 0.28;
+        scale = 0.16;
         opacity = 0;
-        blur = '4px';
       }
 
       const z = Math.max(0, 10 - abs);
       const depth = `${Math.max(-280, -abs * 85)}px`;
-      const tilt = `${d * -4}deg`;
+      const tilt = `${d * -3.5}deg`;
 
       return {
         '--x': `${x}px`,
         '--size': size,
         '--scale': scale,
         '--opacity': opacity,
-        '--blur': blur,
         '--z': z,
         '--depth': depth,
         '--tilt': tilt,

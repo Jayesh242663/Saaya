@@ -4,12 +4,15 @@
   top: 0;
   width: var(--size);
   height: var(--size);
-  transform: translate(-50%, -50%) translateX(calc(var(--x) + var(--drag-x, 0px)))
-    translateZ(var(--depth)) rotateY(var(--tilt)) scale(var(--scale));
+  transform: translate3d(calc(-50% + var(--x) + var(--drag-x, 0px)), -50%, var(--depth))
+    rotateY(var(--tilt)) scale(var(--scale));
   opacity: var(--opacity);
-  filter: blur(var(--blur));
-  transition: transform 780ms var(--ease), opacity 780ms var(--ease), filter 780ms var(--ease);
+  transition: transform 680ms var(--ease-fluid), opacity 680ms var(--ease-fluid);
   z-index: var(--z);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform-style: preserve-3d;
 }
 
 .orb-wrap.dragging {
@@ -36,7 +39,10 @@
   border: 1px solid rgba(244, 241, 235, 0.22);
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.74), 0 0 45px var(--glow);
   background: #1a1716;
-  transition: box-shadow 0.8s ease;
+  transition: box-shadow 680ms var(--ease-fluid), border-color 680ms var(--ease-fluid);
+  will-change: box-shadow;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .orb::before {
@@ -86,7 +92,8 @@
   user-select: none;
   /* Scale slightly to trim 4:3 video letterbox bars and fill circular disc edge-to-edge */
   transform: scale(1.24);
-  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), filter 0.6s ease;
+  transition: transform 680ms var(--ease-fluid);
+  will-change: transform;
 }
 
 .orb-vignette {
@@ -99,6 +106,7 @@
               radial-gradient(circle, transparent 55%, rgba(10, 8, 8, 0.45) 85%, rgba(0, 0, 0, 0.75) 100%);
   border: 1.5px solid rgba(255, 255, 255, 0.2);
   box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.65), inset 0 0 4px rgba(255, 255, 255, 0.25);
+  transition: border-color 680ms var(--ease-fluid), box-shadow 680ms var(--ease-fluid);
 }
 
 .orb.has-thumbnail .orb-core {
@@ -153,9 +161,5 @@
 
 .orb-wrap.active .orb::before {
   animation-duration: 9s;
-}
-
-.orb-wrap.active {
-  --blur: 0px !important;
 }
 

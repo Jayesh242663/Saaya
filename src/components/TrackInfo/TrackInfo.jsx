@@ -27,6 +27,9 @@ export function TrackInfo({
 
   const formattedIndex = String(index + 1).padStart(2, '0');
 
+  // Effective duration comes from either YouTube engine duration or track metadata
+  const effectiveDuration = duration > 0 ? duration : (track?.duration > 0 ? track.duration : 0);
+
   // Keep lastSyncRef updated when currentTime changes from audio engine
   useEffect(() => {
     lastSyncRef.current = { time: currentTime, stamp: performance.now() };
@@ -37,13 +40,13 @@ export function TrackInfo({
     let animId;
 
     const tick = () => {
-      if (!isScrubbingRef.current && duration > 0) {
+      if (!isScrubbingRef.current && effectiveDuration > 0) {
         let currentSecs = lastSyncRef.current.time;
         if (isPlaying) {
           const delta = (performance.now() - lastSyncRef.current.stamp) / 1000;
-          currentSecs = Math.min(duration, lastSyncRef.current.time + delta);
+          currentSecs = Math.min(effectiveDuration, lastSyncRef.current.time + delta);
         }
-        const pct = Math.min(100, Math.max(0, (currentSecs / duration) * 100));
+        const pct = Math.min(100, Math.max(0, (currentSecs / effectiveDuration) * 100));
 
         if (fillRef.current) fillRef.current.style.width = `${pct}%`;
         if (thumbRef.current) thumbRef.current.style.left = `${pct}%`;
@@ -54,7 +57,7 @@ export function TrackInfo({
 
     animId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(animId);
-  }, [duration, isPlaying]);
+  }, [effectiveDuration, isPlaying]);
 
   const getPercentFromEvent = (e, trackEl) => {
     const rect = trackEl.getBoundingClientRect();
@@ -66,13 +69,13 @@ export function TrackInfo({
     scrubPctRef.current = p;
     if (fillRef.current) fillRef.current.style.width = `${p}%`;
     if (thumbRef.current) thumbRef.current.style.left = `${p}%`;
-    if (elapsedRef.current && duration > 0) {
-      elapsedRef.current.textContent = formatTime((p / 100) * duration);
+    if (elapsedRef.current && effectiveDuration > 0) {
+      elapsedRef.current.textContent = formatTime((p / 100) * effectiveDuration);
     }
   };
 
   const handlePointerDown = (e) => {
-    if (duration <= 0) return;
+    if (effectiveDuration <= 0) return;
     const trackEl = e.currentTarget;
     try {
       trackEl.setPointerCapture(e.pointerId);
@@ -84,7 +87,7 @@ export function TrackInfo({
   };
 
   const handlePointerMove = (e) => {
-    if (!isScrubbingRef.current || duration <= 0) return;
+    if (!isScrubbingRef.current || effectiveDuration <= 0) return;
     const p = getPercentFromEvent(e, e.currentTarget);
     setVisualPosition(p);
   };
@@ -94,15 +97,15 @@ export function TrackInfo({
     const p = getPercentFromEvent(e, e.currentTarget);
     isScrubbingRef.current = false;
     setIsScrubbing(false);
-    if (onSeek && duration > 0) {
-      const targetSec = (p / 100) * duration;
+    if (onSeek && effectiveDuration > 0) {
+      const targetSec = (p / 100) * effectiveDuration;
       lastSyncRef.current = { time: targetSec, stamp: performance.now() };
       onSeek(targetSec);
     }
   };
 
   const handleKeyDown = (e) => {
-    if (duration <= 0 || !onSeek) return;
+    if (effectiveDuration <= 0 || !onSeek) return;
     if (e.key === 'ArrowLeft') {
       e.preventDefault();
       const target = Math.max(0, currentTime - 5);
@@ -110,7 +113,7 @@ export function TrackInfo({
       onSeek(target);
     } else if (e.key === 'ArrowRight') {
       e.preventDefault();
-      const target = Math.min(duration, currentTime + 5);
+      const target = Math.min(effectiveDuration, currentTime + 5);
       lastSyncRef.current = { time: target, stamp: performance.now() };
       onSeek(target);
     }
@@ -118,17 +121,19 @@ export function TrackInfo({
 
   return (
     <section className="track-info" aria-live="polite">
-      <div className="track-kicker">
-        NOW PLAYING / <span id="trackIndex">{formattedIndex}</span>
-      </div>
-      <h1 className="track-title" id="trackTitle">
-        {track?.title || 'Unknown Track'}
-      </h1>
-      <div className="track-artist" id="trackArtist">
-        {track?.artist || 'Unknown Artist'}
-      </div>
-      <div className="track-meta" id="trackMeta">
-        {track?.meta || ''}
+      <div key={track?.id || track?.youtubeId || index} className="track-text-group">
+        <div className="track-kicker">
+          NOW PLAYING / <span id="trackIndex">{formattedIndex}</span>
+        </div>
+        <h1 className="track-title" id="trackTitle">
+          {track?.title || 'Unknown Track'}
+        </h1>
+        <div className="track-artist" id="trackArtist">
+          {track?.artist || 'Unknown Artist'}
+        </div>
+        <div className="track-meta" id="trackMeta">
+          {track?.meta || ''}
+        </div>
       </div>
 
       {/* Interactive Music Progress Bar with 60fps continuous liquid animation */}
@@ -151,7 +156,7 @@ export function TrackInfo({
         </div>
         <div className="progress-times">
           <span ref={elapsedRef} id="elapsed">{formatTime(currentTime)}</span>
-          <span id="duration">{formatTime(duration)}</span>
+          <span id="duration">{formatTime(effectiveDuration)}</span>
         </div>
       </div>
     </section>

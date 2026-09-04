@@ -16,7 +16,7 @@ export const VOICES = [
     inworldVoiceName: 'Meher',
     supportedLanguages: ['hi-IN', 'mr-IN', 'en-US'],
     defaultPersonality: 'calm',
-    defaultDeliveryMode: 'BALANCED',
+    defaultDeliveryMode: 'CREATIVE',
     defaultSpeakingRate: 1.0,
     modelId: 'inworld-tts-2',
     description: 'Inworld TTS-2 Indian Female Voice for Hindi, Marathi & English (Warm, Eloquent & Natural).'
@@ -28,7 +28,7 @@ export const VOICES = [
     inworldVoiceName: 'Sarah',
     supportedLanguages: ['en-US', 'hi-IN', 'mr-IN', 'es-ES', 'fr-FR', 'de-DE', 'ja-JP'],
     defaultPersonality: 'calm',
-    defaultDeliveryMode: 'BALANCED',
+    defaultDeliveryMode: 'CREATIVE',
     defaultSpeakingRate: 1.0,
     modelId: 'inworld-tts-2',
     description: 'Inworld TTS-2 Female Voice (Stable & Velvety).'
@@ -40,7 +40,7 @@ export const VOICES = [
     inworldVoiceName: 'Blake',
     supportedLanguages: ['en-US', 'hi-IN', 'mr-IN', 'es-ES', 'fr-FR', 'de-DE', 'ja-JP'],
     defaultPersonality: 'late-night',
-    defaultDeliveryMode: 'BALANCED',
+    defaultDeliveryMode: 'CREATIVE',
     defaultSpeakingRate: 1.0,
     modelId: 'inworld-tts-2',
     description: 'Inworld TTS-2 Male Voice (Expressive & Deep).'
@@ -53,7 +53,7 @@ export function getVoiceById(id) {
 
   const match = VOICES.find(
     (v) => v.id.toLowerCase() === clean ||
-           v.inworldVoiceName.toLowerCase() === clean
+      v.inworldVoiceName.toLowerCase() === clean
   );
   if (match) return match;
 
@@ -70,7 +70,7 @@ export function getVoiceById(id) {
       inworldVoiceName: id.trim(),
       supportedLanguages: Object.keys(SUPPORTED_LANGUAGES),
       defaultPersonality: 'calm',
-      defaultDeliveryMode: 'BALANCED',
+      defaultDeliveryMode: 'CREATIVE',
       defaultSpeakingRate: 1.0,
       modelId: 'inworld-tts-2',
       description: `Inworld Voice: ${id.trim()}`

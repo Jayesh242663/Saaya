@@ -26,7 +26,25 @@
   pointer-events: none;
   opacity: 0.92;
   filter: blur(50px);
-  transition: opacity 1.2s ease, background-image 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity;
+  transition: opacity 1.1s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.stage-ambient-gradient.prev {
+  opacity: 0;
+}
+
+.stage-ambient-gradient.fade-in {
+  animation: ambientFadeIn 1.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes ambientFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.92;
+  }
 }
 
 .stage::after {

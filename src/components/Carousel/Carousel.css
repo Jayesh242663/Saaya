@@ -20,6 +20,7 @@
   width: 0;
   height: 0;
   perspective: 1000px;
+  transform-style: preserve-3d;
 }
 
 .carousel-line {
@@ -28,9 +29,9 @@
   height: 1px;
   top: calc(50% + clamp(115px, 17vh, 170px));
   left: 50%;
-  transform: translateX(calc(-50% + var(--drag-x, 0px) * 0.2));
+  transform: translate3d(calc(-50% + var(--drag-x, 0px) * 0.2), 0, 0);
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14), transparent);
-  transition: transform 780ms var(--ease);
+  transition: transform 680ms var(--ease-fluid);
   pointer-events: none;
 }
 
@@ -54,9 +55,10 @@
   border-radius: 50%;
   top: -1px;
   left: 0;
-  transform: translate(-50%, -50%) translateX(calc(var(--x) + var(--drag-x, 0px) * 0.8));
+  transform: translate3d(calc(-50% + var(--x) + var(--drag-x, 0px) * 0.8), -50%, 0);
   opacity: var(--opacity);
-  transition: transform 780ms var(--ease), opacity 780ms var(--ease), box-shadow 780ms var(--ease);
+  transition: transform 680ms var(--ease-fluid), opacity 680ms var(--ease-fluid), box-shadow 680ms var(--ease-fluid);
+  will-change: transform, opacity;
 }
 
 .carousel-line.is-dragging .carousel-tick {

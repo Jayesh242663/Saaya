@@ -79,7 +79,18 @@ export const DEFAULT_PREFERENCES = {
   storytelling: true
 };
 
-const VALID_PERSONALITIES = ['late-night', 'warm', 'calm', 'energetic', 'elegant'];
+const VALID_PERSONALITIES = [
+  'auto-time',
+  'morning',
+  'daylight',
+  'golden-hour',
+  'evening',
+  'late-night',
+  'warm',
+  'calm',
+  'energetic',
+  'elegant'
+];
 const VALID_ENERGIES = ['mellow', 'moderate', 'high'];
 const VALID_DELIVERY_MODES = ['BALANCED', 'FAST', 'EXPRESSIVE', 'CREATIVE', 'STABLE'];
 const VALID_COMMENTARY_LEVELS = ['subtle', 'balanced', 'full'];

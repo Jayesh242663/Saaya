@@ -253,23 +253,28 @@ class InworldService {
       });
 
       const audioUrls = await Promise.all(synthesisPromises);
+      const validUrls = audioUrls.filter(Boolean);
+
+      if (validUrls.length === 0) {
+        throw new Error('TTS synthesis failed to generate audio stream');
+      }
 
       if (this.isCancelled) return;
 
       // Broadcast begins now that audio is ready in memory
       if (onStart) onStart();
 
-      for (let i = 0; i < audioUrls.length; i++) {
+      for (let i = 0; i < validUrls.length; i++) {
         if (this.isCancelled) break;
-        const url = audioUrls[i];
+        const url = validUrls[i];
         if (url) {
           await this.playAudioUrl(url);
         }
         if (this.isCancelled) break;
 
         // Small, natural, crisp radio breath gap
-        const gap = segments[i]?.gapAfter > 0 ? Math.min(260, segments[i].gapAfter) : (i < audioUrls.length - 1 ? 160 : 0);
-        if (gap > 0 && i < audioUrls.length - 1) {
+        const gap = segments[i]?.gapAfter > 0 ? Math.min(260, segments[i].gapAfter) : (i < validUrls.length - 1 ? 160 : 0);
+        if (gap > 0 && i < validUrls.length - 1) {
           await new Promise((resolve) => {
             this.gapTimeout = setTimeout(() => {
               this.gapTimeout = null;
@@ -283,17 +288,13 @@ class InworldService {
         onEnd();
       }
     } catch (err) {
-      console.warn('[Inworld Service] TTS playback notice:', err.message || err);
-      const readDuration = Math.max(3000, Math.min(7000, (text || '').split(' ').length * 240));
-      this.fallbackTimeout = setTimeout(() => {
-        this.fallbackTimeout = null;
-        if (onEnd) onEnd();
-      }, readDuration);
+      console.warn('[Inworld Service] TTS playback failure:', err.message || err);
+      throw err;
     }
   }
 
   playAudioUrl(url) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const audio = new Audio(url);
       this.currentAudio = audio;
 
@@ -306,14 +307,14 @@ class InworldService {
       audio.onerror = () => {
         URL.revokeObjectURL(url);
         this.currentAudio = null;
-        resolve();
+        reject(new Error('Audio playback error'));
       };
 
       audio.play().catch((err) => {
         console.warn('[Inworld Service] Audio element playback interrupted:', err.message || err);
         URL.revokeObjectURL(url);
         this.currentAudio = null;
-        resolve();
+        reject(err);
       });
     });
   }

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useCarousel, mod } from './hooks/useCarousel';
 import { useYouTubeAudio } from './hooks/useYouTubeAudio';
 import { useRadioShow } from './hooks/useRadioShow';
@@ -30,6 +30,9 @@ export default function App() {
   const [importError, setImportError] = useState('');
   const [isAiDjEnabled, setIsAiDjEnabled] = useState(() => apiConfig.isAiDjEnabled());
 
+  const handleNextWithTransitionRef = useRef(null);
+  const handlePrevRef = useRef(null);
+
   const {
     current,
     visibleSlots,
@@ -43,7 +46,10 @@ export default function App() {
     handlePointerMove,
     handlePointerUp,
     getOrbStyles
-  } = useCarousel(trackList.length);
+  } = useCarousel(trackList.length, 4, {
+    onNext: () => handleNextWithTransitionRef.current?.(),
+    onPrev: () => handlePrevRef.current?.()
+  });
 
   const currentTrack = trackList[current] || trackList[0] || null;
 
@@ -51,6 +57,7 @@ export default function App() {
   const {
     isDjSpeaking,
     isIntroPreparing,
+    isPreloadingStandby,
     spokenText,
     currentWeather,
     playShowIntro,
@@ -60,7 +67,8 @@ export default function App() {
     stopDj
   } = useRadioShow({
     setAudioVolume: (vol) => setVolume(vol),
-    curatedBroadcast: curatedBroadcast
+    curatedBroadcast: curatedBroadcast,
+    onDjFailure: (err) => handleDjFailure(err)
   });
 
   // YouTube Audio Engine
@@ -70,13 +78,22 @@ export default function App() {
     isMuted,
     currentTime,
     duration,
+    loadedFraction,
+    isMusicFullyLoaded,
     play,
     pause,
     togglePlayPause,
     toggleMute,
     seekTo,
     setVolume
-  } = useYouTubeAudio({ currentYoutubeId: currentTrack?.youtubeId, onTrackEnded: handleTrackEnded });
+  } = useYouTubeAudio({
+    currentYoutubeId: currentTrack?.youtubeId,
+    currentTrack,
+    isDjSpeaking: isDjSpeaking || isIntroPreparing,
+    onTrackEnded: handleTrackEnded,
+    onNext: () => handleNextWithTransition(),
+    onPrev: () => handlePrev()
+  });
 
   // Listening Room Synchronization Engine
   const {
@@ -145,21 +162,22 @@ export default function App() {
     if (trackList.length === 0) return;
     const nextIndex = mod(current + 1, trackList.length);
     const nextTrack = trackList[nextIndex];
+    const prevTrack = currentTrack;
+    const transitionIndex = current;
 
     broadcastTrackChange(nextIndex);
+    move(1);
 
     if (isAiDjEnabled && playTransition) {
       playTransition(
-        currentTrack,
+        prevTrack,
         nextTrack,
         () => {
-          move(1);
           play();
         },
-        current
+        transitionIndex
       );
     } else {
-      move(1);
       play();
     }
   }
@@ -234,13 +252,29 @@ export default function App() {
           broadcastPlay(currentTime);
         }
       } else {
-        stopDj();
-        setCurrent(slotIndex);
+        const prevTrack = currentTrack;
+        const nextTrack = trackList[targetIndex];
+        const transitionIndex = current;
+
         broadcastTrackChange(targetIndex);
-        if (isPlaying) play();
+        setCurrent(slotIndex);
+
+        if (isAiDjEnabled && playTransition) {
+          pause();
+          playTransition(
+            prevTrack,
+            nextTrack,
+            () => {
+              play();
+            },
+            transitionIndex
+          );
+        } else {
+          if (isPlaying) play();
+        }
       }
     },
-    [current, isPlaying, play, pause, setCurrent, stopDj, trackList.length, broadcastPause, broadcastPlay, broadcastTrackChange, currentTime]
+    [current, currentTrack, isPlaying, play, pause, setCurrent, trackList, isAiDjEnabled, playTransition, broadcastPause, broadcastPlay, broadcastTrackChange, currentTime]
   );
 
   const handleStartOrTogglePlay = useCallback(() => {
@@ -255,10 +289,14 @@ export default function App() {
 
   const handleSeek = useCallback(
     (seconds) => {
-      seekTo(seconds);
+      // Direct user manipulation: interrupt any ongoing AI DJ speech, restore volume, seek and start playing directly
+      stopDj();
+      setVolume(100);
+      seekTo(seconds, true);
       broadcastSeek(seconds);
+      broadcastPlay(seconds);
     },
-    [seekTo, broadcastSeek]
+    [stopDj, setVolume, seekTo, broadcastSeek, broadcastPlay]
   );
 
   const handleToggleAiDj = useCallback(() => {
@@ -273,26 +311,38 @@ export default function App() {
     });
   }, [setVolume, stopDj]);
 
+  const handleDjFailure = useCallback(
+    (err) => {
+      console.warn('[AI DJ Notice] Commentary encountered an issue. Automatically switching to OFF AIR:', err?.message || err);
+      setIsAiDjEnabled(false);
+      apiConfig.setAiDjEnabled(false);
+      stopDj();
+      setVolume(100);
+    },
+    [setVolume, stopDj]
+  );
+
   const handleNextWithTransition = useCallback(() => {
     if (trackList.length === 0) return;
     const nextIndex = mod(current + 1, trackList.length);
     const nextTrack = trackList[nextIndex];
+    const prevTrack = currentTrack;
+    const transitionIndex = current;
 
     broadcastTrackChange(nextIndex);
+    move(1);
 
     if (isAiDjEnabled && playTransition) {
       pause();
       playTransition(
-        currentTrack,
+        prevTrack,
         nextTrack,
         () => {
-          move(1);
           play();
         },
-        current
+        transitionIndex
       );
     } else {
-      move(1);
       if (isPlaying) play();
     }
   }, [current, currentTrack, isPlaying, playTransition, move, pause, play, trackList, isAiDjEnabled, broadcastTrackChange]);
@@ -305,20 +355,26 @@ export default function App() {
     if (isPlaying) play();
   }, [current, isPlaying, move, play, stopDj, trackList.length, broadcastTrackChange]);
 
-  // Pre-fetch and keep upcoming song's commentary on standby in memory while the current song is playing
+  // Keep navigation callback refs synchronized for useCarousel
   useEffect(() => {
-    if (isPlaying && isAiDjEnabled && trackList.length > 1) {
+    handleNextWithTransitionRef.current = handleNextWithTransition;
+  }, [handleNextWithTransition]);
+
+  useEffect(() => {
+    handlePrevRef.current = handlePrev;
+  }, [handlePrev]);
+
+  // Pre-fetch and keep upcoming song's commentary on standby in memory once the current song is confirmed smoothly loaded and playing
+  useEffect(() => {
+    if (isPlaying && isAiDjEnabled && isMusicFullyLoaded && trackList.length > 1) {
       const nextIndex = mod(current + 1, trackList.length);
       const curr = trackList[current];
       const nxt = trackList[nextIndex];
       if (curr && nxt) {
-        const timer = setTimeout(() => {
-          preloadNextTransition(curr, nxt, current);
-        }, 2000);
-        return () => clearTimeout(timer);
+        preloadNextTransition(curr, nxt, current);
       }
     }
-  }, [current, isPlaying, isAiDjEnabled, trackList, preloadNextTransition]);
+  }, [current, isPlaying, isAiDjEnabled, isMusicFullyLoaded, trackList, preloadNextTransition]);
 
   const { targetPalette, gradient: backgroundGradient } = useThumbnailPalette(currentTrack);
   const city = apiConfig.getWeatherCity();

@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { getVoiceById, isLanguageSupported } from '../config/voices.js';
-import { personalityMap } from '../config/personalityMap.js';
+import { personalityMap, resolvePersonality } from '../config/personalityMap.js';
 
 export class InworldService {
   static getApiKey() {
@@ -76,8 +76,8 @@ export class InworldService {
     const inworldVoiceId = voice ? voice.inworldVoiceName : 'Meher';
 
     // Resolve personality & pacing modulation
-    const personality = request.personality || (voice ? voice.defaultPersonality : 'calm');
-    const personalityConfig = personalityMap[personality] || personalityMap['calm'];
+    const personality = request.personality || (voice ? voice.defaultPersonality : 'auto-time');
+    const personalityConfig = resolvePersonality(personality);
 
     const baseRate = typeof request.speakingRate === 'number' && request.speakingRate > 0 ? request.speakingRate : 1.0;
     const finalSpeakingRate = Number(baseRate.toFixed(2));

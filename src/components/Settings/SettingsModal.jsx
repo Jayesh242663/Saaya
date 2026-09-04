@@ -192,27 +192,46 @@ export function SettingsModal({ isOpen, onClose }) {
               <span>
                 DJ personality
                 <small>
-                  {preferences.personality === 'warm'
-                    ? 'Warm & Heartfelt — Friendly, personal, welcoming'
+                  {preferences.personality === 'morning'
+                    ? 'Morning Horizon — Fresh, gentle optimism & early light'
+                    : preferences.personality === 'daylight'
+                    ? 'Midday Pulse — Steady, focused afternoon companionship'
+                    : preferences.personality === 'golden-hour'
+                    ? 'Golden Hour Drive — Amber sunset nostalgia & unwinding'
+                    : preferences.personality === 'evening'
+                    ? 'Velvet Evening — Cozy, conversational late-night lounge'
+                    : preferences.personality === 'late-night'
+                    ? 'Midnight Solace — Intimate nocturnal companion for quiet hours'
+                    : preferences.personality === 'warm'
+                    ? 'Warm & Heartfelt — Friendly, personal, and welcoming'
                     : preferences.personality === 'calm'
                     ? 'Tranquil & Meditative — Soothing, mindful serenity'
                     : preferences.personality === 'energetic'
                     ? 'Vibrant & Dynamic — Lively, passionate enthusiasm'
                     : preferences.personality === 'elegant'
-                    ? 'Refined & Cultured — Poetic lore, sophisticated depth'
-                    : 'Late Night Companion — Intimate, nocturnal, mellow'}
+                    ? 'Refined & Cultured — Poetic lore & sophisticated depth'
+                    : 'Auto (Time of Day) — Synchronized with your local sky'}
                 </small>
               </span>
               <select
-                value={preferences.personality || 'late-night'}
+                value={preferences.personality || 'auto-time'}
                 onChange={(e) => updatePreference('personality', e.target.value)}
                 aria-label="DJ personality"
               >
-                <option value="late-night">Late Night Companion (Nocturnal & Intimate)</option>
-                <option value="warm">Warm & Heartfelt (Friendly & Welcoming)</option>
-                <option value="calm">Tranquil & Meditative (Soothing & Peaceful)</option>
-                <option value="elegant">Refined & Cultured (Poetic & Sophisticated)</option>
-                <option value="energetic">Vibrant & Dynamic (Upbeat & Passionate)</option>
+                <optgroup label="24-Hour Broadcast Schedules">
+                  <option value="auto-time">Auto (Sync with local time of day)</option>
+                  <option value="morning">Morning Horizon (05:00 - 11:59 · Awakening)</option>
+                  <option value="daylight">Midday Pulse (12:00 - 16:59 · Afternoon Flow)</option>
+                  <option value="golden-hour">Golden Hour Drive (17:00 - 20:59 · Sunset)</option>
+                  <option value="evening">Velvet Evening (21:00 - 23:59 · Cozy Lounge)</option>
+                  <option value="late-night">Midnight Solace (00:00 - 04:59 · Quiet Solitude)</option>
+                </optgroup>
+                <optgroup label="Aesthetic Archetypes">
+                  <option value="warm">Warm & Heartfelt (Friendly & Welcoming)</option>
+                  <option value="calm">Tranquil & Meditative (Soothing & Peaceful)</option>
+                  <option value="elegant">Refined & Cultured (Poetic & Sophisticated)</option>
+                  <option value="energetic">Vibrant & Dynamic (Upbeat & Passionate)</option>
+                </optgroup>
               </select>
             </div>
           </div>

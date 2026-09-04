@@ -6,7 +6,8 @@
   --line-soft: rgba(244, 241, 235, 0.07);
   --bg: #050505;
   --panel: rgba(16, 16, 15, 0.72);
-  --ease: cubic-bezier(0.22, 0.78, 0.22, 1);
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-fluid: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 * {

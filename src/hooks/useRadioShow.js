@@ -7,7 +7,7 @@ import { translationService } from '../services/translationService.js';
 import { preferenceService } from '../services/preferenceService.js';
 import { voiceResolverService } from '../services/voiceResolverService.js';
 
-export function useRadioShow({ setAudioVolume, curatedBroadcast }) {
+export function useRadioShow({ setAudioVolume, curatedBroadcast, onDjFailure }) {
   const [isDjSpeaking, setIsDjSpeaking] = useState(false);
   const [spokenText, setSpokenText] = useState('');
   const [showPhase, setShowPhase] = useState('idle'); // 'idle' | 'intro' | 'music' | 'transition'
@@ -145,22 +145,33 @@ export function useRadioShow({ setAudioVolume, curatedBroadcast }) {
           }
         );
       } catch (err) {
-        console.warn('Intro speech failed:', err);
+        console.warn('AI host intro failed, switching to OFF AIR:', err);
         setIsIntroPreparing(false);
         setIsDjSpeaking(false);
         setSpokenText('');
         setShowPhase('music');
         restoreMusic();
+        if (onDjFailure) onDjFailure(err);
         if (onIntroComplete) onIntroComplete();
       }
     },
     [duckMusic, restoreMusic, curatedBroadcast]
   );
 
+  const isPreloadingStandbyRef = useRef(null);
+  const [isPreloadingStandby, setIsPreloadingStandby] = useState(false);
+
   // Pre-synthesize the upcoming transition and keep on standby in memory while the current song plays
   const preloadNextTransition = useCallback(
     async (currentTrack, nextTrack, transitionIndex) => {
       if (!apiConfig.isAiDjEnabled() || !currentTrack || !nextTrack) return;
+      const transitionKey = `${currentTrack?.id || currentTrack?.title}->${nextTrack?.id || nextTrack?.title}`;
+      if (standbyTransitionRef.current?.key === transitionKey) return;
+      if (isPreloadingStandbyRef.current === transitionKey) return;
+
+      isPreloadingStandbyRef.current = transitionKey;
+      setIsPreloadingStandby(true);
+
       try {
         const city = apiConfig.getWeatherCity();
         const weather = await weatherService.getWeather(city);
@@ -214,13 +225,18 @@ export function useRadioShow({ setAudioVolume, curatedBroadcast }) {
 
         if (preloaded) {
           standbyTransitionRef.current = {
-            key: `${currentTrack?.id || currentTrack?.title}->${nextTrack?.id || nextTrack?.title}`,
+            key: transitionKey,
             script,
             preloaded
           };
         }
       } catch (err) {
         console.warn('Standby transition preload note:', err);
+      } finally {
+        if (isPreloadingStandbyRef.current === transitionKey) {
+          isPreloadingStandbyRef.current = null;
+        }
+        setIsPreloadingStandby(false);
       }
     },
     [curatedBroadcast]
@@ -333,11 +349,12 @@ export function useRadioShow({ setAudioVolume, curatedBroadcast }) {
           }
         );
       } catch (err) {
-        console.warn('Transition speech failed:', err);
+        console.warn('AI host transition failed, switching to OFF AIR:', err);
         setIsDjSpeaking(false);
         setSpokenText('');
         setShowPhase('music');
         restoreMusic();
+        if (onDjFailure) onDjFailure(err);
         if (onTransitionComplete) onTransitionComplete();
       }
     },
@@ -355,6 +372,7 @@ export function useRadioShow({ setAudioVolume, curatedBroadcast }) {
   return {
     isDjSpeaking,
     isIntroPreparing,
+    isPreloadingStandby,
     spokenText,
     showPhase,
     currentWeather,

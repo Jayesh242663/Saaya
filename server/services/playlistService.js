@@ -241,8 +241,8 @@ export const PlaylistService = {
       return this.extractAppleMusicPlaylist(input);
     }
 
-    // 4. JioSaavn
-    if (input.includes('jiosaavn.com')) {
+    // 4. JioSaavn / Saavn
+    if (input.includes('jiosaavn.com') || input.includes('saavn.com')) {
       return this.extractJioSaavnPlaylist(input);
     }
 
@@ -406,11 +406,13 @@ export const PlaylistService = {
         const lang = detectTrackLanguage(title, artist);
         const orb = generateGlowPalette(i);
         const youtubeId = await resolveYouTubeStreamId(title, artist);
+        const durationSec = item.duration ? Math.round(item.duration / 1000) : (item.duration_ms ? Math.round(item.duration_ms / 1000) : null);
 
         return {
           id: `spotify-${i}-${youtubeId}`,
           title: title,
           artist: artist,
+          duration: durationSec,
           youtubeId: youtubeId,
           language: lang.name,
           languageCode: lang.code,
@@ -487,10 +489,19 @@ export const PlaylistService = {
         const orb = generateGlowPalette(i);
         const youtubeId = await resolveYouTubeStreamId(title, artist);
 
+        let durationSec = null;
+        if (item.duration && typeof item.duration === 'string') {
+          const match = item.duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/i);
+          if (match) {
+            durationSec = parseInt(match[1] || '0', 10) * 3600 + parseInt(match[2] || '0', 10) * 60 + parseInt(match[3] || '0', 10);
+          }
+        }
+
         return {
           id: `apple-${i}-${youtubeId}`,
           title: title,
           artist: artist,
+          duration: durationSec,
           youtubeId: youtubeId,
           language: lang.name,
           languageCode: lang.code,
@@ -517,12 +528,17 @@ export const PlaylistService = {
   },
 
   /**
-   * JioSaavn Playlist Extractor
+   * JioSaavn Playlist & Track Extractor
+   * Supports Albums, Playlists, Featured Collections, and Individual Songs
    */
   async extractJioSaavnPlaylist(url) {
-    const res = await fetch(url, {
+    const targetUrl = url.trim();
+    const res = await fetch(targetUrl, {
+      redirect: 'follow',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9'
       }
     });
 
@@ -530,11 +546,183 @@ export const PlaylistService = {
     const html = await res.text();
 
     const titleMatch = html.match(/<title>(.*?)<\/title>/);
-    const playlistTitle = titleMatch ? titleMatch[1].replace(/\|.*$/g, '').trim() : 'JioSaavn Playlist';
+    let playlistTitle = titleMatch
+      ? titleMatch[1].replace(/\|.*$/g, '').replace(/@ JioSaavn.*$/g, '').replace(/Songs Download.*?$/gi, '').trim()
+      : 'JioSaavn Music';
 
-    // Look for songs in page schema or meta
-    const matches = [...html.matchAll(/"songName":"([^"]+)"/g)].map((m) => m[1]);
-    const uniqueSongs = [...new Set(matches)];
+    let rawSongList = [];
+
+    // 1. Primary: Extract rich entities from window.__INITIAL_DATA__
+    const startStr = 'window.__INITIAL_DATA__ = ';
+    const startIdx = html.indexOf(startStr);
+    if (startIdx !== -1) {
+      try {
+        const jsonStart = startIdx + startStr.length;
+        const scriptEndIdx = html.indexOf('</script>', jsonStart);
+        let rawJs = html.slice(jsonStart, scriptEndIdx).trim();
+        if (rawJs.endsWith(';')) rawJs = rawJs.slice(0, -1).trim();
+
+        const data = new Function(`return (${rawJs});`)();
+
+        // 1. Check for playlist (data.playlist?.playlist or data.playlistView?.playlist)
+        const pl = data.playlist?.playlist || data.playlistView?.playlist || (data.playlist?.list ? data.playlist : null);
+        if (pl) {
+          const titleObj = pl.title || pl.name;
+          playlistTitle = typeof titleObj === 'object' ? titleObj?.text || playlistTitle : titleObj || playlistTitle;
+          const list = pl.list || pl.songs || pl.track_list;
+          if (Array.isArray(list) && list.length > 0) {
+            rawSongList = list.map((s) => {
+              const titleObj = s.title || s.song || s.name;
+              const cleanTitle = typeof titleObj === 'object' ? titleObj?.text : titleObj;
+
+              let cleanArtist = 'JioSaavn Artist';
+              if (Array.isArray(s.subtitle)) {
+                cleanArtist = s.subtitle.map((a) => (typeof a === 'object' ? a.text : a)).filter(Boolean).join(', ');
+              } else if (Array.isArray(s.artist)) {
+                cleanArtist = s.artist.map((a) => (typeof a === 'object' ? a.text : a)).filter(Boolean).join(', ');
+              } else if (Array.isArray(s.artists)) {
+                cleanArtist = s.artists.map((a) => (typeof a === 'object' ? a.text : a)).filter(Boolean).join(', ');
+              } else if (typeof s.artist === 'string') {
+                cleanArtist = s.artist;
+              } else if (typeof s.subtitle === 'string') {
+                cleanArtist = s.subtitle;
+              } else if (typeof s.singers === 'string') {
+                cleanArtist = s.singers;
+              }
+
+              let thumb = null;
+              if (Array.isArray(s.image) && s.image.length > 0) {
+                thumb = s.image[s.image.length - 1] || s.image[0];
+              } else if (typeof s.image === 'string') {
+                thumb = s.image;
+              }
+
+              return {
+                title: cleanTitle || 'JioSaavn Song',
+                artist: cleanArtist || 'JioSaavn Artist',
+                thumbnail: thumb,
+                duration: typeof s.duration === 'number' ? s.duration : (s.duration ? parseInt(s.duration, 10) : (s.more_info?.duration ? parseInt(s.more_info.duration, 10) : null))
+              };
+            });
+          }
+        }
+
+        // 2. Check for album (data.albumView?.album or data.album?.album or data.album)
+        if (!rawSongList.length) {
+          const alb = data.albumView?.album || data.album?.album || (data.album?.songs || data.album?.list ? data.album : null);
+          if (alb) {
+            const titleObj = alb.title || alb.name;
+            playlistTitle = typeof titleObj === 'object' ? titleObj?.text || playlistTitle : titleObj || playlistTitle;
+            const list = alb.songs || alb.list || alb.track_list;
+            if (Array.isArray(list) && list.length > 0) {
+              rawSongList = list.map((s) => {
+                const titleObj = s.title || s.song || s.name;
+                const cleanTitle = typeof titleObj === 'object' ? titleObj?.text : titleObj;
+
+                let cleanArtist = 'JioSaavn Artist';
+                if (Array.isArray(s.subtitle)) {
+                  cleanArtist = s.subtitle.map((a) => (typeof a === 'object' ? a.text : a)).filter(Boolean).join(', ');
+                } else if (Array.isArray(s.artist)) {
+                  cleanArtist = s.artist.map((a) => (typeof a === 'object' ? a.text : a)).filter(Boolean).join(', ');
+                } else if (Array.isArray(s.artists)) {
+                  cleanArtist = s.artists.map((a) => (typeof a === 'object' ? a.text : a)).filter(Boolean).join(', ');
+                } else if (typeof s.artist === 'string') {
+                  cleanArtist = s.artist;
+                } else if (typeof s.subtitle === 'string') {
+                  cleanArtist = s.subtitle;
+                } else if (typeof s.singers === 'string') {
+                  cleanArtist = s.singers;
+                }
+
+                let thumb = null;
+                if (Array.isArray(s.image) && s.image.length > 0) {
+                  thumb = s.image[s.image.length - 1] || s.image[0];
+                } else if (typeof s.image === 'string') {
+                  thumb = s.image;
+                }
+
+                return {
+                  title: cleanTitle || 'JioSaavn Song',
+                  artist: cleanArtist || 'JioSaavn Artist',
+                  thumbnail: thumb,
+                  duration: typeof s.duration === 'number' ? s.duration : (s.duration ? parseInt(s.duration, 10) : (s.more_info?.duration ? parseInt(s.more_info.duration, 10) : null))
+                };
+              });
+            }
+          }
+        }
+
+        // 3. Check for single song (data.song?.song or data.songView?.song)
+        if (!rawSongList.length) {
+          const s = data.song?.song || data.songView?.song || (data.song?.title ? data.song : null);
+          if (s) {
+            const titleObj = s.title || s.song || s.name;
+            playlistTitle = typeof titleObj === 'object' ? titleObj?.text || playlistTitle : titleObj || playlistTitle;
+
+            let cleanArtist = 'JioSaavn Artist';
+            if (Array.isArray(s.subtitle)) {
+              cleanArtist = s.subtitle.map((a) => (typeof a === 'object' ? a.text : a)).filter(Boolean).join(', ');
+            } else if (Array.isArray(s.artist)) {
+              cleanArtist = s.artist.map((a) => (typeof a === 'object' ? a.text : a)).filter(Boolean).join(', ');
+            } else if (Array.isArray(s.artists)) {
+              cleanArtist = s.artists.map((a) => (typeof a === 'object' ? a.text : a)).filter(Boolean).join(', ');
+            } else if (typeof s.artist === 'string') {
+              cleanArtist = s.artist;
+            } else if (typeof s.subtitle === 'string') {
+              cleanArtist = s.subtitle;
+            } else if (typeof s.singers === 'string') {
+              cleanArtist = s.singers;
+            }
+
+            let thumb = null;
+            if (Array.isArray(s.image) && s.image.length > 0) {
+              thumb = s.image[s.image.length - 1] || s.image[0];
+            } else if (typeof s.image === 'string') {
+              thumb = s.image;
+            }
+
+            rawSongList = [
+              {
+                title: (typeof titleObj === 'object' ? titleObj?.text : titleObj) || 'JioSaavn Song',
+                artist: cleanArtist || 'JioSaavn Artist',
+                thumbnail: thumb,
+                duration: typeof s.duration === 'number' ? s.duration : (s.duration ? parseInt(s.duration, 10) : (s.more_info?.duration ? parseInt(s.more_info.duration, 10) : null))
+              }
+            ];
+          }
+        }
+      } catch (err) {
+        console.warn('[JioSaavn Parser] Error reading __INITIAL_DATA__:', err);
+      }
+    }
+
+    // 2. Fallback: Parse HTML links & metadata if __INITIAL_DATA__ was empty
+    if (!rawSongList.length) {
+      const songLinks = [...html.matchAll(/href="(\/song\/[^"]+)"[^>]*>([^<]+)<\/a>/g)];
+      if (songLinks.length > 0) {
+        const seen = new Set();
+        for (const match of songLinks) {
+          const cleanName = match[2]
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/&amp;/g, '&')
+            .trim();
+          if (cleanName && !seen.has(cleanName)) {
+            seen.add(cleanName);
+            rawSongList.push({
+              title: cleanName,
+              artist: 'JioSaavn Artist',
+              thumbnail: null,
+              duration: null
+            });
+          }
+        }
+      }
+    }
+
+    if (!rawSongList.length) {
+      throw new Error('Could not find any songs in this JioSaavn link. Please ensure it is a public song, album, or playlist.');
+    }
 
     async function mapWithConcurrency(items, fn, concurrency = 8) {
       const results = new Array(items.length);
@@ -549,13 +737,12 @@ export const PlaylistService = {
       return results;
     }
 
-    const songList = uniqueSongs.length > 0 ? uniqueSongs : ['Song 1', 'Song 2', 'Song 3'];
-    const limit = Math.min(songList.length, 100);
+    const limit = Math.min(rawSongList.length, 100);
     const tracks = await mapWithConcurrency(
-      songList.slice(0, limit),
-      async (sTitle, i) => {
-        const title = sTitle;
-        const artist = 'JioSaavn Artist';
+      rawSongList.slice(0, limit),
+      async (songItem, i) => {
+        const title = songItem.title || `Track ${i + 1}`;
+        const artist = songItem.artist || 'JioSaavn Artist';
         const lang = detectTrackLanguage(title, artist);
         const orb = generateGlowPalette(i);
         const youtubeId = await resolveYouTubeStreamId(title, artist);
@@ -564,6 +751,8 @@ export const PlaylistService = {
           id: `jiosaavn-${i}-${youtubeId}`,
           title: title,
           artist: artist,
+          thumbnail: songItem.thumbnail || null,
+          duration: songItem.duration || null,
           youtubeId: youtubeId,
           language: lang.name,
           languageCode: lang.code,
