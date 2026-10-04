@@ -36,13 +36,19 @@ export function OrbCard({
 
   const hasImage = Boolean(thumbnailUrl) && !imgError;
 
+  const isDismissing = Boolean(styles?.isDismissing);
+  const isSlidingVert = Math.abs(styles?.dismissDistance || 0) > 4;
+  const showDismissBadge = styles?.canDismiss && Math.abs(styles?.dismissDistance || 0) > 18;
+  const isDismissReady = Math.abs(styles?.dismissDistance || 0) > 55;
+
   return (
     <div
-      className={`orb-wrap ${isActive ? 'active' : ''} ${isDragging ? 'dragging' : ''}`}
+      className={`orb-wrap ${isActive ? 'active' : ''} ${isDragging ? 'dragging' : ''} ${
+        isDismissing ? 'dismissing' : ''
+      } ${isSlidingVert ? 'sliding-vert' : ''}`}
       style={styles}
       data-index={index}
       aria-hidden={isActive ? undefined : 'true'}
-      inert={!isActive}
     >
       <button
         type="button"
@@ -65,6 +71,16 @@ export function OrbCard({
           <div className="orb-vignette" />
           <div className="orb-core" />
           <div className="orb-ring" />
+
+          {/* Dismiss indicator pill when sliding up or down */}
+          {showDismissBadge && (
+            <div className={`orb-dismiss-badge ${isDismissReady ? 'ready' : ''}`}>
+              <svg viewBox="0 0 24 24" className="dismiss-trash-icon" aria-hidden="true">
+                <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6" />
+              </svg>
+              <span>{isDismissReady ? 'Release to remove' : 'Remove song'}</span>
+            </div>
+          )}
         </div>
       </button>
     </div>

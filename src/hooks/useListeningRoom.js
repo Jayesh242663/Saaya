@@ -122,9 +122,19 @@ export function useListeningRoom({
         setCuratedBroadcast(playback.curatedBroadcast);
       }
 
-      // Update track index
-      if (Number.isInteger(playback.currentTrackIndex) && playback.currentTrackIndex !== currentTrackIndexRef.current) {
-        setCurrentTrackIndex(playback.currentTrackIndex);
+      // Special case: QUEUE_UPDATE modifies the queue without resetting position or audio
+      if (action === 'QUEUE_UPDATE') {
+        if (Array.isArray(playback.tracks) && playback.tracks.length > 0) {
+          setTrackList(playback.tracks);
+        }
+        if (Number.isInteger(playback.currentTrackIndex)) {
+          setCurrentTrackIndex(playback.currentTrackIndex);
+        }
+        setTimeout(() => {
+          isApplyingRemoteSyncRef.current = false;
+          setSyncStatus('in-sync');
+        }, 150);
+        return;
       }
 
       // Handle playback state & position
@@ -440,6 +450,18 @@ export function useListeningRoom({
     [broadcastSyncAction]
   );
 
+  const broadcastQueueUpdate = useCallback(
+    (newTracks, newIndex) => {
+      broadcastSyncAction('QUEUE_UPDATE', {
+        tracks: newTracks,
+        currentTrackIndex: Number.isInteger(newIndex) ? newIndex : currentTrackIndexRef.current,
+        playbackPosition: currentTimeRef.current || 0,
+        playbackState: isPlayingRef.current ? 'playing' : 'paused'
+      });
+    },
+    [broadcastSyncAction]
+  );
+
   return {
     isInRoom,
     isHost,
@@ -462,6 +484,7 @@ export function useListeningRoom({
     broadcastPause,
     broadcastSeek,
     broadcastTrackChange,
-    broadcastPlaylistUpdate
+    broadcastPlaylistUpdate,
+    broadcastQueueUpdate
   };
 }

@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { useCarousel, mod } from './hooks/useCarousel';
+import { useCarousel } from './hooks/useCarousel';
 import { useYouTubeAudio } from './hooks/useYouTubeAudio';
 import { useRadioShow } from './hooks/useRadioShow';
 import { useThumbnailPalette } from './hooks/useThumbnailPalette';
@@ -32,12 +32,14 @@ export default function App() {
 
   const handleNextWithTransitionRef = useRef(null);
   const handlePrevRef = useRef(null);
+  const handleRemoveSlotRef = useRef(null);
 
   const {
     current,
     visibleSlots,
     isDragging,
     dragX,
+    dismissState,
     didDrag,
     move,
     setCurrent,
@@ -48,7 +50,8 @@ export default function App() {
     getOrbStyles
   } = useCarousel(trackList.length, 4, {
     onNext: () => handleNextWithTransitionRef.current?.(),
-    onPrev: () => handlePrevRef.current?.()
+    onPrev: () => handlePrevRef.current?.(),
+    onDismiss: (slotIndex) => handleRemoveSlotRef.current?.(slotIndex)
   });
 
   const currentTrack = trackList[current] || trackList[0] || null;
@@ -64,7 +67,8 @@ export default function App() {
     playTransition,
     preloadNextTransition,
     resetIntroState,
-    stopDj
+    stopDj,
+    invalidateStandby
   } = useRadioShow({
     setAudioVolume: (vol) => setVolume(vol),
     curatedBroadcast: curatedBroadcast,
@@ -118,7 +122,8 @@ export default function App() {
     broadcastPause,
     broadcastSeek,
     broadcastTrackChange,
-    broadcastPlaylistUpdate
+    broadcastPlaylistUpdate,
+    broadcastQueueUpdate
   } = useListeningRoom({
     trackList,
     setTrackList,
@@ -157,10 +162,15 @@ export default function App() {
     }
   }, [isInRoom, trackList.length, appScreen]);
 
-  // Auto-advance to next track with DJ transition when track finishes
+  // Auto-advance to next track with DJ transition when track finishes (strictly linear queue)
   function handleTrackEnded() {
     if (trackList.length === 0) return;
-    const nextIndex = mod(current + 1, trackList.length);
+    if (current >= trackList.length - 1) {
+      // Reached the end of the queue - do not create an infinite loop
+      pause();
+      return;
+    }
+    const nextIndex = current + 1;
     const nextTrack = trackList[nextIndex];
     const prevTrack = currentTrack;
     const transitionIndex = current;
@@ -182,6 +192,118 @@ export default function App() {
     }
   }
 
+  // Handle single song directly (e.g. from landing screen search)
+  const handlePlaySingleSong = useCallback(
+    (track) => {
+      if (!track) return;
+      setTrackList([track]);
+      setCuratedBroadcast(null);
+      resetIntroState();
+      setCurrent(0);
+      broadcastPlaylistUpdate([track], null);
+      setAppScreen('player');
+      setTimeout(() => {
+        play();
+      }, 150);
+    },
+    [resetIntroState, setCurrent, broadcastPlaylistUpdate, play]
+  );
+
+  // Queue Operations: Insert Next
+  const handlePlayNext = useCallback(
+    (track) => {
+      if (!track) return;
+      setTrackList((prev) => {
+        const nextIdx = current + 1;
+        const updated = [...prev.slice(0, nextIdx), track, ...prev.slice(nextIdx)];
+        invalidateStandby();
+        broadcastQueueUpdate(updated, current);
+        return updated;
+      });
+    },
+    [current, invalidateStandby, broadcastQueueUpdate]
+  );
+
+  // Queue Operations: Add to end of Queue
+  const handleAddToQueue = useCallback(
+    (track) => {
+      if (!track) return;
+      setTrackList((prev) => {
+        const updated = [...prev, track];
+        broadcastQueueUpdate(updated, current);
+        return updated;
+      });
+    },
+    [current, broadcastQueueUpdate]
+  );
+
+  // Queue Operations: Play right now
+  const handlePlayNow = useCallback(
+    (track) => {
+      if (!track) return;
+      if (appScreen === 'import') {
+        handlePlaySingleSong(track);
+        return;
+      }
+      setTrackList((prev) => {
+        const nextIdx = current + 1;
+        const updated = [...prev.slice(0, nextIdx), track, ...prev.slice(nextIdx)];
+        invalidateStandby();
+        setCurrent(nextIdx);
+        broadcastTrackChange(nextIdx);
+        broadcastQueueUpdate(updated, nextIdx);
+        setTimeout(() => {
+          play();
+        }, 80);
+        return updated;
+      });
+    },
+    [appScreen, current, handlePlaySingleSong, invalidateStandby, setCurrent, broadcastTrackChange, broadcastQueueUpdate, play]
+  );
+
+  // Queue Operations: Remove track at slot (sliding orb up or down)
+  const handleRemoveSlot = useCallback(
+    (slotIndex) => {
+      setTrackList((prev) => {
+        if (prev.length <= 1) return prev;
+        const targetIndex = slotIndex;
+        if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+
+        const removedTrack = prev[targetIndex];
+        const updated = prev.filter((_, idx) => idx !== targetIndex);
+
+        let newCurrent = current;
+        if (targetIndex === current) {
+          // If active song is dismissed, move to current slot or new end slot
+          if (newCurrent >= updated.length) {
+            newCurrent = Math.max(0, updated.length - 1);
+          }
+          setCurrent(newCurrent);
+          broadcastTrackChange(newCurrent);
+          setTimeout(() => {
+            play();
+          }, 80);
+        } else if (targetIndex < current) {
+          newCurrent = current - 1;
+          newCurrent = Math.max(0, Math.min(updated.length - 1, newCurrent));
+          setCurrent(newCurrent);
+          broadcastTrackChange(newCurrent);
+        }
+
+        invalidateStandby();
+        broadcastQueueUpdate(updated, newCurrent);
+
+        return updated;
+      });
+    },
+    [current, setCurrent, invalidateStandby, broadcastQueueUpdate, broadcastTrackChange, play]
+  );
+
+  // Keep navigation callback refs synchronized for useCarousel
+  useEffect(() => {
+    handleRemoveSlotRef.current = handleRemoveSlot;
+  }, [handleRemoveSlot]);
+
   // Handle playlist link extraction & curated broadcast generation
   const handleImportPlaylist = async (url) => {
     setImportError('');
@@ -196,6 +318,22 @@ export default function App() {
         throw new Error('No tracks found in this playlist. Please ensure it is public.');
       }
 
+      // If single song: play immediately without needing full radio show creation
+      const isSingle = Boolean(playlistData.isSingleSong || playlistData.trackCount === 1);
+      if (isSingle) {
+        setTrackList(playlistData.tracks);
+        setCuratedBroadcast(null);
+        resetIntroState();
+        setCurrent(0);
+        broadcastPlaylistUpdate(playlistData.tracks, null);
+        setAppScreen('player');
+        setTimeout(() => {
+          play();
+        }, 150);
+        return;
+      }
+
+      // If full playlist: generate curated atmospheric show
       setLoadingStep('Detecting language & tuning voice');
       const weather = currentWeather || (await weatherService.getWeather());
 
@@ -242,7 +380,8 @@ export default function App() {
 
   const handleSelectSlot = useCallback(
     (slotIndex) => {
-      const targetIndex = mod(slotIndex, trackList.length);
+      if (slotIndex < 0 || slotIndex >= trackList.length) return;
+      const targetIndex = slotIndex;
       if (targetIndex === current) {
         if (isPlaying) {
           pause();
@@ -257,7 +396,7 @@ export default function App() {
         const transitionIndex = current;
 
         broadcastTrackChange(targetIndex);
-        setCurrent(slotIndex);
+        setCurrent(targetIndex);
 
         if (isAiDjEnabled && playTransition) {
           pause();
@@ -323,8 +462,8 @@ export default function App() {
   );
 
   const handleNextWithTransition = useCallback(() => {
-    if (trackList.length === 0) return;
-    const nextIndex = mod(current + 1, trackList.length);
+    if (trackList.length === 0 || current >= trackList.length - 1) return;
+    const nextIndex = current + 1;
     const nextTrack = trackList[nextIndex];
     const prevTrack = currentTrack;
     const transitionIndex = current;
@@ -348,9 +487,10 @@ export default function App() {
   }, [current, currentTrack, isPlaying, playTransition, move, pause, play, trackList, isAiDjEnabled, broadcastTrackChange]);
 
   const handlePrev = useCallback(() => {
+    if (trackList.length === 0 || current <= 0) return;
     stopDj();
     move(-1);
-    const prevIndex = mod(current - 1, trackList.length);
+    const prevIndex = current - 1;
     broadcastTrackChange(prevIndex);
     if (isPlaying) play();
   }, [current, isPlaying, move, play, stopDj, trackList.length, broadcastTrackChange]);
@@ -366,8 +506,8 @@ export default function App() {
 
   // Pre-fetch and keep upcoming song's commentary on standby in memory once the current song is confirmed smoothly loaded and playing
   useEffect(() => {
-    if (isPlaying && isAiDjEnabled && isMusicFullyLoaded && trackList.length > 1) {
-      const nextIndex = mod(current + 1, trackList.length);
+    if (isPlaying && isAiDjEnabled && isMusicFullyLoaded && trackList.length > 1 && current < trackList.length - 1) {
+      const nextIndex = current + 1;
       const curr = trackList[current];
       const nxt = trackList[nextIndex];
       if (curr && nxt) {
@@ -377,7 +517,6 @@ export default function App() {
   }, [current, isPlaying, isAiDjEnabled, isMusicFullyLoaded, trackList, preloadNextTransition]);
 
   const { targetPalette, gradient: backgroundGradient } = useThumbnailPalette(currentTrack);
-  const city = apiConfig.getWeatherCity();
 
   return (
     <Stage targetPalette={targetPalette} backgroundGradient={backgroundGradient}>
@@ -396,6 +535,7 @@ export default function App() {
       {appScreen === 'import' && (
         <ImportScreen
           onSubmit={handleImportPlaylist}
+          onPlaySingleSong={handlePlaySingleSong}
           error={importError}
           onOpenRoom={() => setIsRoomModalOpen(true)}
         />
@@ -420,6 +560,10 @@ export default function App() {
             roomId={roomId}
             participantCount={participants.length}
             onImportPlaylist={handleImportPlaylist}
+            onPlayNext={handlePlayNext}
+            onAddToQueue={handleAddToQueue}
+            onPlayNow={handlePlayNow}
+            isQueueDisabled={isInRoom && !isHost && roomSettings?.djOnly}
             isDjSpeaking={isDjSpeaking}
             isAiDjEnabled={isAiDjEnabled}
             onToggleAiDj={handleToggleAiDj}
@@ -463,6 +607,9 @@ export default function App() {
               onPrev={handlePrev}
               onNext={handleNextWithTransition}
               onPlayPause={handleStartOrTogglePlay}
+              hasMultipleTracks={trackList.length > 1}
+              canGoPrev={current > 0}
+              canGoNext={current < trackList.length - 1}
             />
           </section>
 
@@ -491,6 +638,7 @@ export default function App() {
         onUpdateSettings={updateRoomSettings}
         initialCode={initialRoomCode}
       />
+
     </Stage>
   );
 }

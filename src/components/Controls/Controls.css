@@ -26,6 +26,14 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
+.control:disabled,
+.control.is-disabled {
+  opacity: 0.18;
+  cursor: default;
+  pointer-events: none;
+  transform: none !important;
+}
+
 .control.primary {
   width: clamp(58px, 7.8vh, 68px);
   height: clamp(58px, 7.8vh, 68px);

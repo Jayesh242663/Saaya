@@ -369,6 +369,12 @@ export function useRadioShow({ setAudioVolume, curatedBroadcast, onDjFailure }) 
     restoreMusic();
   }, [restoreMusic]);
 
+  const invalidateStandby = useCallback(() => {
+    standbyTransitionRef.current = null;
+    isPreloadingStandbyRef.current = null;
+    setIsPreloadingStandby(false);
+  }, []);
+
   return {
     isDjSpeaking,
     isIntroPreparing,
@@ -380,6 +386,7 @@ export function useRadioShow({ setAudioVolume, curatedBroadcast, onDjFailure }) 
     playTransition,
     preloadNextTransition,
     resetIntroState,
-    stopDj
+    stopDj,
+    invalidateStandby
   };
 }

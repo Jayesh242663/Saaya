@@ -1,15 +1,7 @@
-import { useState } from 'react';
+import { SongInput } from '../SongInput/SongInput';
 import './ImportScreen.css';
 
-export function ImportScreen({ onSubmit, error, onOpenRoom }) {
-  const [url, setUrl] = useState('');
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!url.trim()) return;
-    onSubmit(url.trim());
-  };
-
+export function ImportScreen({ onSubmit, onPlaySingleSong, error, onOpenRoom }) {
   return (
     <div className="import-screen-container">
       <div className="brand-header">
@@ -40,27 +32,12 @@ export function ImportScreen({ onSubmit, error, onOpenRoom }) {
           Paste a playlist link and SAAYA will shape its songs into a continuous radio show, tuned to your mood.
         </p>
 
-        <form className="import-form" onSubmit={handleSubmit}>
-          <svg viewBox="0 0 24 24" aria-hidden="true" className="link-icon">
-            <path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 7 20l1.1-1.1" />
-          </svg>
-          <label className="sr-only" htmlFor="landingPlaylistUrl">
-            Playlist link
-          </label>
-          <input
-            id="landingPlaylistUrl"
-            type="url"
-            placeholder="Paste your playlist link"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            required
-            autoFocus
-          />
-          <button className="tune-submit-btn" type="submit">
-            <span>Tune in</span>
-            <span className="tune-arrow">→</span>
-          </button>
-        </form>
+        <SongInput
+          variant="hero"
+          onImportPlaylist={onSubmit}
+          onPlayNow={onPlaySingleSong}
+          placeholder="Paste your playlist link"
+        />
 
         {error && <div className="import-error">{error}</div>}
 

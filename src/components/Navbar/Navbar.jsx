@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { SongInput } from '../SongInput/SongInput';
 import './Navbar.css';
 
 export function Navbar({
@@ -12,12 +13,15 @@ export function Navbar({
   roomId = null,
   participantCount = 0,
   onImportPlaylist,
+  onPlayNext,
+  onAddToQueue,
+  onPlayNow,
+  isQueueDisabled = false,
   isDjSpeaking,
   isAiDjEnabled = true,
   onToggleAiDj,
   weather = null
 }) {
-  const [headerUrl, setHeaderUrl] = useState('');
   const [currentTimeStr, setCurrentTimeStr] = useState(() => {
     return new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   });
@@ -29,13 +33,6 @@ export function Navbar({
     const timer = setInterval(tick, 10000);
     return () => clearInterval(timer);
   }, []);
-
-  const handleHeaderSubmit = (e) => {
-    e.preventDefault();
-    if (!headerUrl.trim()) return;
-    onImportPlaylist?.(headerUrl.trim());
-    setHeaderUrl('');
-  };
 
   const displayTime = weather?.clockTime || currentTimeStr;
 
@@ -85,23 +82,17 @@ export function Navbar({
         </button>
       </div>
 
-      {/* Playlist Link Input in Header matching landing page design */}
-      <form className="nav-playlist-form" onSubmit={handleHeaderSubmit}>
-        <svg viewBox="0 0 24 24" aria-hidden="true" className="nav-link-icon">
-          <path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 7 20l1.1-1.1" />
-        </svg>
-        <input
-          type="url"
-          placeholder="Paste playlist link to switch..."
-          value={headerUrl}
-          onChange={(e) => setHeaderUrl(e.target.value)}
-          aria-label="Change playlist"
-        />
-        <button type="submit" className="nav-tune-btn" aria-label="Tune to playlist">
-          <span>Tune</span>
-          <span className="nav-arrow">→</span>
-        </button>
-      </form>
+      {/* Dynamic Song & Link Input in Header */}
+      <SongInput
+        variant="compact"
+        onImportPlaylist={onImportPlaylist}
+        onPlayNext={onPlayNext}
+        onAddToQueue={onAddToQueue}
+        onPlayNow={onPlayNow}
+        isPlayerScreen={true}
+        disabled={isQueueDisabled}
+        placeholder="Search radio"
+      />
 
       <div className="nav-actions">
         <button

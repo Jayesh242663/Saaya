@@ -1,14 +1,28 @@
 import './Controls.css';
 
-export function Controls({ isPlaying, isLoading = false, onPrev, onNext, onPlayPause }) {
+export function Controls({
+  isPlaying,
+  isLoading = false,
+  onPrev,
+  onNext,
+  onPlayPause,
+  hasMultipleTracks = true,
+  canGoPrev = true,
+  canGoNext = true
+}) {
+  const isPrevDisabled = !hasMultipleTracks || !canGoPrev;
+  const isNextDisabled = !hasMultipleTracks || !canGoNext;
+
   return (
     <div className="controls" aria-label="Playback controls">
       <button
         type="button"
-        className="control"
+        className={`control ${isPrevDisabled ? 'is-disabled' : ''}`}
         id="prevBtn"
         aria-label="Previous track"
-        onClick={onPrev}
+        onClick={!isPrevDisabled ? onPrev : undefined}
+        disabled={isPrevDisabled}
+        title={!isPrevDisabled ? 'Previous track' : 'No previous track'}
       >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M5 5v14M19 6l-9 6 9 6V6z" />
@@ -38,10 +52,12 @@ export function Controls({ isPlaying, isLoading = false, onPrev, onNext, onPlayP
 
       <button
         type="button"
-        className="control"
+        className={`control ${isNextDisabled ? 'is-disabled' : ''}`}
         id="nextBtn"
         aria-label="Next track"
-        onClick={onNext}
+        onClick={!isNextDisabled ? onNext : undefined}
+        disabled={isNextDisabled}
+        title={!isNextDisabled ? 'Next track' : 'No next track'}
       >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M19 5v14M5 6l9 6-9 6V6z" />

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { mod } from '../../hooks/useCarousel';
 import { OrbCard } from './OrbCard';
 import './Carousel.css';
 
@@ -39,7 +38,8 @@ export function Carousel({
     >
       <div className={`carousel ${isDragging ? 'is-dragging' : ''}`} id="carousel" role="list">
         {visibleSlots.map((slotIndex) => {
-          const track = tracks[mod(slotIndex, tracks.length)];
+          const track = tracks[slotIndex];
+          if (!track) return null;
           const styles = getOrbStyles(slotIndex, windowWidth);
           return (
             <OrbCard
@@ -56,33 +56,35 @@ export function Carousel({
         })}
       </div>
 
-      <div
-        className={`carousel-line ${isDragging ? 'is-dragging' : ''}`}
-        aria-hidden="true"
-        style={{ '--drag-x': `${dragX}px` }}
-      >
-        <div className="carousel-line-ticks">
-          {visibleSlots.map((slotIndex) => {
-            const styles = getOrbStyles(slotIndex, windowWidth);
-            return (
-              <span
-                key={`tick-${slotIndex}`}
-                className={`carousel-tick ${styles.isActive ? 'active' : ''}`}
-                style={{
-                  '--x': styles['--x'],
-                  '--opacity': styles.isActive
-                    ? 1
-                    : styles.absDistance === 1
-                    ? 0.45
-                    : styles.absDistance === 2
-                    ? 0.2
-                    : 0
-                }}
-              />
-            );
-          })}
+      {tracks.length > 1 && (
+        <div
+          className={`carousel-line ${isDragging ? 'is-dragging' : ''}`}
+          aria-hidden="true"
+          style={{ '--drag-x': `${dragX}px` }}
+        >
+          <div className="carousel-line-ticks">
+            {visibleSlots.map((slotIndex) => {
+              const styles = getOrbStyles(slotIndex, windowWidth);
+              return (
+                <span
+                  key={`tick-${slotIndex}`}
+                  className={`carousel-tick ${styles.isActive ? 'active' : ''}`}
+                  style={{
+                    '--x': styles['--x'],
+                    '--opacity': styles.isActive
+                      ? 1
+                      : styles.absDistance === 1
+                      ? 0.45
+                      : styles.absDistance === 2
+                      ? 0.2
+                      : 0
+                  }}
+                />
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

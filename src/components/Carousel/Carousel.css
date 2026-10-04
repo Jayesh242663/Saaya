@@ -3,7 +3,7 @@
   height: clamp(200px, 34vh, 360px);
   position: relative;
   margin: 0;
-  touch-action: pan-y;
+  touch-action: none;
   cursor: grab;
   user-select: none;
   flex-shrink: 0;

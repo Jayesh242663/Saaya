@@ -4,7 +4,11 @@
   top: 0;
   width: var(--size);
   height: var(--size);
-  transform: translate3d(calc(-50% + var(--x) + var(--drag-x, 0px)), -50%, var(--depth))
+  transform: translate3d(
+      calc(-50% + var(--x) + var(--drag-x, 0px)),
+      calc(-50% + var(--drag-y, 0px)),
+      var(--depth)
+    )
     rotateY(var(--tilt)) scale(var(--scale));
   opacity: var(--opacity);
   transition: transform 680ms var(--ease-fluid), opacity 680ms var(--ease-fluid);
@@ -13,10 +17,69 @@
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   transform-style: preserve-3d;
+  touch-action: none;
 }
 
-.orb-wrap.dragging {
-  transition: none;
+.orb-wrap.dragging,
+.orb-wrap.sliding-vert {
+  transition: none !important;
+}
+
+.orb-wrap.dismissing {
+  transition: transform 240ms cubic-bezier(0.4, 0, 1, 1), opacity 240ms ease-in !important;
+}
+
+/* Dismiss Pill Badge */
+.orb-dismiss-badge {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(220, 38, 38, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 0 8px 24px rgba(220, 38, 38, 0.6), 0 0 12px rgba(255, 255, 255, 0.2);
+  z-index: 10;
+  pointer-events: none;
+  animation: badgePop 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+}
+
+.orb-dismiss-badge.ready {
+  background: #ef4444;
+  transform: translate(-50%, -50%) scale(1.08);
+  box-shadow: 0 10px 30px rgba(239, 68, 68, 0.85);
+}
+
+.dismiss-trash-icon {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@keyframes badgePop {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
 
 .orb-button {

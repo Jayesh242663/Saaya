@@ -62,6 +62,40 @@ export function handleMusicRequest(req, res) {
     return;
   }
 
+  // GET /api/tracks/search?q=...&limit=... - Search songs dynamically
+  if (req.method === 'GET' && (pathname === '/api/tracks/search' || pathname === '/api/tracks/search/')) {
+    const query = searchParams.get('q') || '';
+    const limit = Math.min(20, Math.max(1, parseInt(searchParams.get('limit') || '10', 10)));
+    if (!query.trim()) {
+      res.statusCode = 400;
+      res.end(JSON.stringify({ error: 'INVALID_QUERY', message: 'Query parameter q is required.' }));
+      return;
+    }
+
+    PlaylistService.searchSongs(query.trim(), limit)
+      .then((results) => {
+        res.statusCode = 200;
+        res.end(
+          JSON.stringify({
+            success: true,
+            count: results.length,
+            results
+          })
+        );
+      })
+      .catch((err) => {
+        console.error('[Track Search Error]', err);
+        res.statusCode = 500;
+        res.end(
+          JSON.stringify({
+            error: 'SEARCH_FAILED',
+            message: err.message || 'Search failed.'
+          })
+        );
+      });
+    return;
+  }
+
   // GET /api/tracks/random - Pick a fresh random track
   if (req.method === 'GET' && (pathname === '/api/tracks/random' || pathname === '/api/tracks/random/')) {
     const randomTrack = MusicService.pickRandomTrack();

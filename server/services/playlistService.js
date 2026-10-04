@@ -181,7 +181,59 @@ export function computeDominantLanguage(tracks = [], playlistTitle = '') {
   return sorted[0] || { code: 'en-US', name: 'English', count: 0 };
 }
 
-// Search YouTube for a track to obtain a valid, playable YouTube video ID
+// Parse a duration string like "3:45" or "1:12:04" into total seconds
+export function parseDurationToSeconds(durStr = '') {
+  if (!durStr || typeof durStr !== 'string') return 0;
+  const parts = durStr.split(':').map((p) => parseInt(p.trim(), 10));
+  if (parts.some(isNaN)) return 0;
+  if (parts.length === 2) {
+    return parts[0] * 60 + parts[1];
+  } else if (parts.length === 3) {
+    return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  }
+  return 0;
+}
+
+// Strict filter to detect and reject YouTube Shorts, reels, teaser snippets, and status videos
+export function isShortOrClip(vr) {
+  if (!vr || !vr.videoId) return true;
+
+  // 1. Reel / Shorts endpoint check
+  if (vr.navigationEndpoint?.reelWatchEndpoint != null) return true;
+
+  // 2. Thumbnail overlays for SHORTS badge
+  const overlays = JSON.stringify(vr.thumbnailOverlays || []);
+  if (/SHORTS/i.test(overlays)) return true;
+
+  // 3. Title checks for #shorts, reels, whatsapp status, teasers
+  const title = (
+    vr.title?.runs?.map((r) => r.text).join('') ||
+    vr.title?.simpleText ||
+    ''
+  ).toLowerCase();
+
+  if (
+    /#shorts?\b/i.test(title) ||
+    /\bshorts\b/i.test(title) ||
+    /\breels?\b/i.test(title) ||
+    /\bwhatsapp\s+status\b/i.test(title) ||
+    /\bstatus\s+video\b/i.test(title) ||
+    /\b(15|30|45)\s*sec\b/i.test(title)
+  ) {
+    return true;
+  }
+
+  // 4. Duration check: Full songs must have duration text and be >= 60 seconds
+  const durStr = vr.lengthText?.simpleText || '';
+  if (!durStr) return true; // Shorts and reels consistently omit lengthText in search
+
+  const sec = parseDurationToSeconds(durStr);
+  if (sec < 60) return true; // Reject anything under 1 minute (teasers, status, short clips)
+
+  return false;
+}
+
+// Search YouTube for a track to obtain a valid, full-length playable YouTube video ID (never Shorts)
 export async function resolveYouTubeStreamId(title, artist) {
   try {
     const cleanTitle = (title || '').replace(/[^\w\s]/gi, ' ').trim();
@@ -192,7 +244,7 @@ export async function resolveYouTubeStreamId(title, artist) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       },
       body: JSON.stringify({
         context: { client: { clientName: 'WEB', clientVersion: '2.20240101.01.00', hl: 'en', gl: 'US' } },
@@ -202,11 +254,42 @@ export async function resolveYouTubeStreamId(title, artist) {
 
     if (res.ok) {
       const data = await res.json();
-      const s = JSON.stringify(data);
-      const regex = /"videoId":"([a-zA-Z0-9_-]{11})"/g;
-      const ids = [...new Set([...s.matchAll(regex)].map((m) => m[1]))];
-      if (ids.length > 0) {
-        return ids[0];
+      const contents =
+        data.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents || [];
+
+      const candidates = [];
+      for (const item of contents) {
+        if (!item.videoRenderer) continue;
+        const vr = item.videoRenderer;
+        if (isShortOrClip(vr)) continue;
+
+        const vrTitle = (vr.title?.runs?.map((r) => r.text).join('') || vr.title?.simpleText || '').toLowerCase();
+        const vrAuthor = (
+          vr.ownerText?.runs?.map((r) => r.text).join('') ||
+          vr.shortBylineText?.runs?.map((r) => r.text).join('') ||
+          ''
+        ).toLowerCase();
+
+        // Calculate relevance score to pick real original song
+        let score = 0;
+        if (cleanArtist && vrAuthor.includes(cleanArtist.toLowerCase())) score += 12;
+        if (vrAuthor.includes('topic') || vrAuthor.includes('vevo') || vrAuthor.includes('records') || vrAuthor.includes('music')) score += 6;
+        if (vrTitle.includes('audio') || vrTitle.includes('official') || vrTitle.includes('lyric')) score += 5;
+        if (vrTitle.includes('teaser') || vrTitle.includes('trailer') || vrTitle.includes('scene')) score -= 20;
+
+        candidates.push({ id: vr.videoId, score });
+      }
+
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => b.score - a.score);
+        return candidates[0].id;
+      }
+
+      // Fallback: any videoRenderer that passes isShortOrClip
+      for (const item of contents) {
+        if (item.videoRenderer?.videoId && !isShortOrClip(item.videoRenderer)) {
+          return item.videoRenderer.videoId;
+        }
       }
     }
   } catch (err) {
@@ -215,7 +298,326 @@ export async function resolveYouTubeStreamId(title, artist) {
   return 'KtlgYxa6BMU'; // Fallback: Lord Huron
 }
 
+// Intelligently parse song title, artists, subtitle (movie/album), and channel from cluttered video metadata
+export function cleanSongTitleAndArtist(rawTitle = '', rawAuthor = '') {
+  if (!rawTitle) {
+    return { title: 'Unknown Title', artist: rawAuthor || 'Artist', subtitle: '', channel: rawAuthor || '' };
+  }
+
+  let cleanAuthor = (rawAuthor || '')
+    .replace(/\s*-\s*Topic$/i, '')
+    .replace(/VEVO$/i, '')
+    .replace(/\s+Official$/i, '')
+    .trim();
+
+  let title = rawTitle;
+
+  // 1. Remove bracketed / parenthesized noise tags
+  title = title.replace(
+    /\s*[\(\[](?:official\s+(?:music\s+)?video|official\s+audio|lyrics|with\s+lyrics|visualizer|audio|4k(?:\s+uhd)?|hd|1080p|(?:[0-9]{4}\s+)?remaster(?:ed)?|full\s+video(?:\s+song)?|video\s+song|audio\s+song|lyric(?:al)?\s+video|hd\s+video.*|dolby\s+audio.*)[\]\)]/gi,
+    ' '
+  );
+
+  // 2. Remove loose noise phrases
+  title = title.replace(
+    /\b(?:with\s+lyrics|official\s+video|official\s+audio|lyric(?:al)?\s+video|full\s+video\s+song|full\s+song|video\s+song|audio\s+song)\b/gi,
+    ' '
+  );
+
+  const noiseItemRegex =
+    /^(?:with\s+lyrics|lyrics|lyric(?:al)?\s+video|official\s+(?:music\s+)?video|official\s+audio|full\s+video\s+song|full\s+song|video\s+song|audio\s+song|old\s+hindi\s+songs?|hindi\s+songs?|marathi\s+songs?|bollywood\s+songs?|evergreen\s+(?:hindi\s+)?songs?|superhit\s+songs?|sad\s+songs?|romantic\s+songs?|best\s+songs?|classic\s+songs?|hit\s+songs?|4k(?:\s+uhd)?|hd|1080p|(?:[0-9]{4}\s+)?remaster(?:ed)?|hd\s+quality|high\s+quality|coke\s+studio.*|t-series|zee\s+music.*|sony\s+music.*|saregama.*|tips\s+official.*|run-up\s+records.*)$/i;
+
+  let finalTitle = title;
+  let finalArtist = cleanAuthor;
+  let subtitle = '';
+
+  // 3. Pipe-separated structure (e.g. "Song Name with lyrics | Actor | Lyricist | Singer | Noise")
+  if (title.includes('|')) {
+    const segments = title.split('|').map((s) => s.trim()).filter(Boolean);
+    const mainSeg = segments[0];
+    const extraSegs = segments.slice(1).filter((s) => !noiseItemRegex.test(s));
+
+    if (mainSeg.includes(' - ')) {
+      const parts = mainSeg.split(' - ').map((s) => s.trim());
+      finalTitle = parts[0];
+      if (parts[1] && !noiseItemRegex.test(parts[1])) {
+        subtitle = parts[1];
+      }
+    } else {
+      finalTitle = mainSeg;
+    }
+
+    if (extraSegs.length > 0) {
+      finalArtist = extraSegs.join(' · ');
+    }
+  } else if (title.includes(' - ')) {
+    const parts = title.split(' - ').map((s) => s.trim()).filter(Boolean);
+    if (parts.length === 2) {
+      if (cleanAuthor && cleanAuthor !== 'Artist' && parts[0].toLowerCase().includes(cleanAuthor.toLowerCase())) {
+        finalArtist = parts[0];
+        finalTitle = parts[1];
+      } else {
+        finalArtist = parts[0];
+        finalTitle = parts[1];
+      }
+    } else if (parts.length > 2) {
+      finalTitle = parts[0];
+      const validRest = parts.slice(1).filter((p) => !noiseItemRegex.test(p));
+      if (validRest.length > 0) {
+        subtitle = validRest[0];
+        if (validRest.length > 1) {
+          finalArtist = validRest.slice(1).join(' · ');
+        }
+      }
+    }
+  }
+
+  // 4. Extract (From "Movie")
+  const fromMatch = finalTitle.match(/[\(\[](?:from|feat\.?|ft\.?)\s+["']?([^"'\]\)]+)["']?[\)\]]/i);
+  if (fromMatch) {
+    if (!subtitle) subtitle = fromMatch[1].trim();
+    finalTitle = finalTitle.replace(fromMatch[0], ' ');
+  }
+
+  // 5. Final cleanup
+  finalTitle = finalTitle.replace(/\s{2,}/g, ' ').trim();
+  finalArtist = (finalArtist || cleanAuthor || 'Artist').replace(/\s{2,}/g, ' ').trim();
+  subtitle = subtitle.replace(/\s{2,}/g, ' ').trim();
+
+  if (!finalTitle) finalTitle = rawTitle;
+
+  return {
+    title: finalTitle,
+    artist: finalArtist,
+    subtitle: subtitle || '',
+    channel: cleanAuthor || ''
+  };
+}
+
 export const PlaylistService = {
+  /**
+   * Search songs via YouTube search API
+   */
+  async searchSongs(query, limit = 10) {
+    if (!query || typeof query !== 'string') return [];
+    try {
+      const cleanQuery = query.trim();
+      const res = await fetch('https://www.youtube.com/youtubei/v1/search?prettyPrint=false', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        },
+        body: JSON.stringify({
+          context: { client: { clientName: 'WEB', clientVersion: '2.20240101.01.00', hl: 'en', gl: 'US' } },
+          query: `${cleanQuery} audio song`
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error(`Search API returned status ${res.status}`);
+      }
+
+      const data = await res.json();
+      const contents =
+        data.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents || [];
+
+      const results = [];
+      for (const item of contents) {
+        const vr = item.videoRenderer;
+        if (!vr || !vr.videoId || vr.videoId.length !== 11) continue;
+
+        // Skip Shorts, reels, teasers, status videos, and clips under 60 seconds
+        if (isShortOrClip(vr)) continue;
+
+        // Skip live streams or premiere badges
+        const isLive = vr.badges?.some((b) => b.metadataBadgeRenderer?.style === 'BADGE_STYLE_TYPE_LIVE_NOW');
+        if (isLive) continue;
+
+        const rawTitle = vr.title?.runs?.map((r) => r.text).join('') || vr.title?.simpleText || 'Unknown Title';
+        const rawAuthor =
+          vr.ownerText?.runs?.map((r) => r.text).join('') ||
+          vr.shortBylineText?.runs?.map((r) => r.text).join('') ||
+          'Artist';
+
+        const cleaned = cleanSongTitleAndArtist(rawTitle, rawAuthor);
+        const durationStr = vr.lengthText?.simpleText || '';
+        const thumb =
+          vr.thumbnail?.thumbnails?.slice(-1)[0]?.url ||
+          `https://i.ytimg.com/vi/${vr.videoId}/hqdefault.jpg`;
+
+        const lang = detectTrackLanguage(cleaned.title, cleaned.artist);
+        const orb = generateGlowPalette(results.length);
+
+        results.push({
+          id: `yt-search-${vr.videoId}-${Date.now()}-${results.length}`,
+          title: cleaned.title,
+          artist: cleaned.artist,
+          subtitle: cleaned.subtitle,
+          channel: cleaned.channel,
+          rawTitle,
+          youtubeId: vr.videoId,
+          thumbnail: thumb,
+          duration: durationStr,
+          language: lang.name,
+          languageCode: lang.code,
+          meta: durationStr ? `TRACK · ${durationStr}` : 'SEARCH RESULT',
+          art: orb.art,
+          core: orb.core,
+          glow: orb.glow,
+          rotate: orb.rotate
+        });
+
+        if (results.length >= limit) break;
+      }
+
+      return results;
+    } catch (err) {
+      console.warn('[PlaylistService] Search failed:', err.message);
+      return [];
+    }
+  },
+
+  /**
+   * Extract metadata for a single YouTube video
+   */
+  async extractYouTubeVideo(videoId) {
+    if (!videoId || videoId.length !== 11) {
+      throw new Error('Invalid YouTube video ID.');
+    }
+
+    let title = 'YouTube Track';
+    let artist = 'Featured Artist';
+    let subtitle = '';
+    let channel = '';
+    let thumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+
+    // 1. Try YouTube official oEmbed endpoint (fast & reliable)
+    try {
+      const oembedRes = await fetch(
+        `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`,
+        { headers: { 'User-Agent': 'Mozilla/5.0' } }
+      );
+      if (oembedRes.ok) {
+        const oembed = await oembedRes.json();
+        const rawTitle = oembed.title || title;
+        const rawAuthor = oembed.author_name || artist;
+
+        const cleaned = cleanSongTitleAndArtist(rawTitle, rawAuthor);
+        title = cleaned.title;
+        artist = cleaned.artist;
+        subtitle = cleaned.subtitle;
+        channel = cleaned.channel;
+
+        if (oembed.thumbnail_url) {
+          thumbnail = oembed.thumbnail_url;
+        }
+      }
+    } catch (err) {
+      console.warn('[PlaylistService] YouTube oEmbed note:', err.message);
+    }
+
+    const lang = detectTrackLanguage(title, artist);
+    const orb = generateGlowPalette(0);
+
+    const singleTrack = {
+      id: `yt-single-${videoId}-${Date.now()}`,
+      title: title || 'YouTube Track',
+      artist: artist || 'Featured Artist',
+      subtitle: subtitle || '',
+      channel: channel || '',
+      youtubeId: videoId,
+      thumbnail: thumbnail,
+      language: lang.name,
+      languageCode: lang.code,
+      meta: 'SINGLE TRACK',
+      art: orb.art,
+      core: orb.core,
+      glow: orb.glow,
+      rotate: orb.rotate
+    };
+
+    return {
+      title: `${title} - ${artist}`,
+      source: 'youtube',
+      isSingleSong: true,
+      kind: 'song',
+      trackCount: 1,
+      dominantLanguage: lang.code,
+      dominantLanguageName: lang.name,
+      tracks: [singleTrack]
+    };
+  },
+
+  /**
+   * Extract metadata for a single Spotify track
+   */
+  async extractSpotifyTrack(url) {
+    const clean = (url || '').trim().split('?')[0];
+    const embedUrl = clean.replace(/open\.spotify\.com\/(?:intl-[a-z-]+\/)?/i, 'open.spotify.com/embed/');
+
+    const res = await fetch(embedUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+
+    if (!res.ok) throw new Error(`Spotify embed returned status ${res.status}`);
+    const html = await res.text();
+
+    const idx = html.indexOf('__NEXT_DATA__');
+    if (idx === -1) throw new Error('Could not parse Spotify track details.');
+
+    const s = html.indexOf('>', idx) + 1;
+    const e = html.indexOf('</script>', s);
+    const data = JSON.parse(html.slice(s, e));
+    const entity = data.props?.pageProps?.state?.data?.entity;
+
+    if (!entity) throw new Error('Spotify track data was empty.');
+
+    const title = entity.name || entity.title || 'Spotify Track';
+    const artist = Array.isArray(entity.artists)
+      ? entity.artists.map((a) => a.name).filter(Boolean).join(', ')
+      : entity.subtitle || 'Artist';
+
+    const thumb =
+      entity.visualIdentity?.image?.[0]?.url ||
+      entity.coverArt?.sources?.[0]?.url ||
+      null;
+
+    const durationSec = entity.duration ? Math.round(entity.duration / 1000) : null;
+    const youtubeId = await resolveYouTubeStreamId(title, artist);
+    const lang = detectTrackLanguage(title, artist);
+    const orb = generateGlowPalette(0);
+
+    const track = {
+      id: `spotify-track-${youtubeId}-${Date.now()}`,
+      title,
+      artist,
+      thumbnail: thumb,
+      duration: durationSec,
+      youtubeId,
+      language: lang.name,
+      languageCode: lang.code,
+      meta: 'SPOTIFY SINGLE',
+      art: orb.art,
+      core: orb.core,
+      glow: orb.glow,
+      rotate: orb.rotate
+    };
+
+    return {
+      title: `${title} - ${artist}`,
+      source: 'spotify',
+      isSingleSong: true,
+      kind: 'song',
+      trackCount: 1,
+      dominantLanguage: lang.code,
+      dominantLanguageName: lang.name,
+      tracks: [track]
+    };
+  },
+
   /**
    * Main universal extractor
    */
@@ -226,13 +628,25 @@ export const PlaylistService = {
 
     const input = urlOrInput.trim();
 
-    // 1. YouTube / YouTube Music
+    // 1. YouTube Single Video vs Playlist
+    const ytVideoMatch = input.match(
+      /(?:youtu\.be\/|youtube\.com\/(?:watch\?.*v=|embed\/|shorts\/)|music\.youtube\.com\/watch\?.*v=)([a-zA-Z0-9_-]{11})/
+    );
+    const hasYtPlaylist = /[?&]list=([a-zA-Z0-9_-]+)/.test(input);
+
+    if (ytVideoMatch && !hasYtPlaylist) {
+      return this.extractYouTubeVideo(ytVideoMatch[1]);
+    }
+
     if (input.includes('youtube.com') || input.includes('youtu.be')) {
       return this.extractYouTubePlaylist(input);
     }
 
-    // 2. Spotify
+    // 2. Spotify Track vs Playlist
     if (input.includes('spotify.com')) {
+      if (input.includes('/track/')) {
+        return this.extractSpotifyTrack(input);
+      }
       return this.extractSpotifyPlaylist(input);
     }
 
@@ -244,6 +658,11 @@ export const PlaylistService = {
     // 4. JioSaavn / Saavn
     if (input.includes('jiosaavn.com') || input.includes('saavn.com')) {
       return this.extractJioSaavnPlaylist(input);
+    }
+
+    // If bare 11-char ID
+    if (/^[a-zA-Z0-9_-]{11}$/.test(input)) {
+      return this.extractYouTubeVideo(input);
     }
 
     // If bare ID or unrecognized, attempt YouTube playlist extraction
@@ -462,6 +881,10 @@ export const PlaylistService = {
           playlistTitle = obj.name || playlistTitle;
           rawTrackList = obj.track;
           break;
+        } else if (obj['@type'] === 'MusicRecording' || (obj.name && !obj.track)) {
+          playlistTitle = obj.name || playlistTitle;
+          rawTrackList = [obj];
+          break;
         }
       } catch {}
     }
@@ -520,6 +943,8 @@ export const PlaylistService = {
     return {
       title: playlistTitle,
       source: 'apple',
+      isSingleSong: tracks.length === 1,
+      kind: tracks.length === 1 ? 'song' : 'playlist',
       trackCount: tracks.length,
       dominantLanguage: dominant.code,
       dominantLanguageName: dominant.name,
@@ -771,6 +1196,8 @@ export const PlaylistService = {
     return {
       title: playlistTitle,
       source: 'jiosaavn',
+      isSingleSong: tracks.length === 1,
+      kind: tracks.length === 1 ? 'song' : 'playlist',
       trackCount: tracks.length,
       dominantLanguage: dominant.code,
       dominantLanguageName: dominant.name,

@@ -100,6 +100,48 @@ export function useYouTubeAudio(arg1 = {}, arg2 = null) {
     }
   }, []);
 
+  // Web Audio keep-alive: keeps OS audio hardware session active so Chrome never pauses background tabs
+  const audioContextRef = useRef(null);
+  const keepAliveOscRef = useRef(null);
+
+  const startAudioKeepAlive = useCallback(() => {
+    try {
+      if (!audioContextRef.current) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          audioContextRef.current = new AudioCtx();
+        }
+      }
+      if (audioContextRef.current) {
+        if (audioContextRef.current.state === 'suspended') {
+          audioContextRef.current.resume().catch(() => {});
+        }
+        if (!keepAliveOscRef.current) {
+          const osc = audioContextRef.current.createOscillator();
+          const gain = audioContextRef.current.createGain();
+          gain.gain.value = 0.00001; // Silent, but tells browser tab is actively streaming audio
+          osc.connect(gain);
+          gain.connect(audioContextRef.current.destination);
+          osc.start();
+          keepAliveOscRef.current = osc;
+        }
+      }
+    } catch (e) {}
+  }, []);
+
+  const stopAudioKeepAlive = useCallback(() => {
+    try {
+      if (keepAliveOscRef.current) {
+        keepAliveOscRef.current.stop();
+        keepAliveOscRef.current.disconnect();
+        keepAliveOscRef.current = null;
+      }
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.suspend().catch(() => {});
+      }
+    } catch (e) {}
+  }, []);
+
   // Initialize YouTube IFrame API with privacy-enhanced host
   useEffect(() => {
     const containerId = 'youtube-audio-engine';
@@ -109,8 +151,8 @@ export function useYouTubeAudio(arg1 = {}, arg2 = null) {
       if (playerRef.current) return;
 
       playerRef.current = new window.YT.Player(containerId, {
-        height: '1',
-        width: '1',
+        height: '240',
+        width: '240',
         host: 'https://www.youtube-nocookie.com',
         videoId: currentYoutubeId || '',
         playerVars: {
@@ -138,6 +180,7 @@ export function useYouTubeAudio(arg1 = {}, arg2 = null) {
               try {
                 event.target.loadVideoById(currentYoutubeId);
                 event.target.playVideo();
+                startAudioKeepAlive();
               } catch (e) {
                 console.warn('Error starting playback onReady:', e);
               }
@@ -160,26 +203,30 @@ export function useYouTubeAudio(arg1 = {}, arg2 = null) {
               setIsPlaying(true);
               setIsBuffering(false);
               startTimeTicker();
+              startAudioKeepAlive();
               if (silentAudioRef.current && silentAudioRef.current.paused && userWantsPlayRef.current) {
                 silentAudioRef.current.play().catch(() => {});
               }
             } else if (state === 2) {
               // PAUSED
-              // If Chrome minimized or phone locked while user wanted to play, auto-resume
-              if (document.visibilityState === 'hidden' && userWantsPlayRef.current) {
-                setTimeout(() => {
-                  if (userWantsPlayRef.current && playerRef.current && typeof playerRef.current.playVideo === 'function') {
-                    try {
-                      playerRef.current.playVideo();
-                    } catch (e) {}
+              // If tab switched or minimized while user wanted to play, prevent pause and immediately resume
+              if (userWantsPlayRef.current) {
+                if (silentAudioRef.current && silentAudioRef.current.paused) {
+                  silentAudioRef.current.play().catch(() => {});
+                }
+                startAudioKeepAlive();
+                try {
+                  if (playerRef.current && typeof playerRef.current.playVideo === 'function') {
+                    playerRef.current.playVideo();
                   }
-                }, 100);
+                } catch (e) {}
                 return;
               }
 
               setIsPlaying(false);
               setIsBuffering(false);
               stopTimeTicker();
+              stopAudioKeepAlive();
               if (silentAudioRef.current && !userWantsPlayRef.current) {
                 silentAudioRef.current.pause();
               }
@@ -199,6 +246,7 @@ export function useYouTubeAudio(arg1 = {}, arg2 = null) {
               // ENDED
               setIsPlaying(false);
               stopTimeTicker();
+              stopAudioKeepAlive();
               if (onTrackEndedRef.current) {
                 onTrackEndedRef.current();
               }
@@ -240,41 +288,40 @@ export function useYouTubeAudio(arg1 = {}, arg2 = null) {
 
     return () => {
       stopTimeTicker();
+      stopAudioKeepAlive();
     };
-  }, []);
+  }, [currentYoutubeId, startAudioKeepAlive, stopAudioKeepAlive, startTimeTicker]);
 
-  // Keep background audio streaming when mobile Chrome tab is backgrounded
+  // Keep background audio streaming when user switches browser tabs or minimizes window
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        if (userWantsPlayRef.current) {
-          if (silentAudioRef.current && silentAudioRef.current.paused) {
-            silentAudioRef.current.play().catch(() => {});
-          }
-
-          setTimeout(() => {
-            if (userWantsPlayRef.current && playerRef.current && typeof playerRef.current.playVideo === 'function') {
-              try {
-                playerRef.current.playVideo();
-              } catch (e) {}
-            }
-          }, 150);
+    const keepPlaying = () => {
+      if (userWantsPlayRef.current) {
+        if (silentAudioRef.current && silentAudioRef.current.paused) {
+          silentAudioRef.current.play().catch(() => {});
         }
-      } else {
-        if (userWantsPlayRef.current && playerRef.current) {
-          try {
-            const playerState = typeof playerRef.current.getPlayerState === 'function' ? playerRef.current.getPlayerState() : -1;
-            if (playerState !== 1 && playerState !== 3) {
+        startAudioKeepAlive();
+
+        if (playerRef.current && typeof playerRef.current.getPlayerState === 'function') {
+          const pState = playerRef.current.getPlayerState();
+          if (pState === 2 || pState === 5 || pState === -1) {
+            try {
               playerRef.current.playVideo();
-            }
-          } catch (e) {}
+            } catch (e) {}
+          }
         }
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, []);
+    document.addEventListener('visibilitychange', keepPlaying);
+    window.addEventListener('blur', keepPlaying);
+    window.addEventListener('focus', keepPlaying);
+
+    return () => {
+      document.removeEventListener('visibilitychange', keepPlaying);
+      window.removeEventListener('blur', keepPlaying);
+      window.removeEventListener('focus', keepPlaying);
+    };
+  }, [startAudioKeepAlive]);
 
   // When active YouTube video ID changes
   useEffect(() => {
@@ -352,6 +399,7 @@ export function useYouTubeAudio(arg1 = {}, arg2 = null) {
     if (silentAudioRef.current && silentAudioRef.current.paused) {
       silentAudioRef.current.play().catch(() => {});
     }
+    startAudioKeepAlive();
 
     if (playerRef.current) {
       try {
@@ -375,7 +423,7 @@ export function useYouTubeAudio(arg1 = {}, arg2 = null) {
         console.warn('Error calling playVideo:', err);
       }
     }
-  }, [currentYoutubeId, startTimeTicker]);
+  }, [currentYoutubeId, startAudioKeepAlive, startTimeTicker]);
 
   const pause = useCallback(() => {
     userWantsPlayRef.current = false;
@@ -385,8 +433,9 @@ export function useYouTubeAudio(arg1 = {}, arg2 = null) {
     if (silentAudioRef.current) {
       silentAudioRef.current.pause();
     }
+    stopAudioKeepAlive();
     setIsPlaying(false);
-  }, []);
+  }, [stopAudioKeepAlive]);
 
   const togglePlayPause = useCallback(() => {
     if (isPlaying) {
@@ -445,6 +494,7 @@ export function useYouTubeAudio(arg1 = {}, arg2 = null) {
           if (silentAudioRef.current && silentAudioRef.current.paused) {
             silentAudioRef.current.play().catch(() => {});
           }
+          startAudioKeepAlive();
 
           startTimeTicker();
         }
@@ -452,7 +502,7 @@ export function useYouTubeAudio(arg1 = {}, arg2 = null) {
         console.warn('Error during seekTo:', err);
       }
     }
-  }, [currentYoutubeId, startTimeTicker]);
+  }, [currentYoutubeId, startAudioKeepAlive, startTimeTicker]);
 
   const setVolume = useCallback((volumePercent) => {
     if (playerRef.current && typeof playerRef.current.setVolume === 'function') {
