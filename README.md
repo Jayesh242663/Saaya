@@ -56,16 +56,7 @@ npm start
 
 ---
 
-## Deployment
 
-SAAYA is container-ready and deploys to cloud hosts like Render, Railway, Fly.io, or VPS with a single command.
-
-```bash
-docker build -t saaya:latest .
-docker run -p 3000:3000 -e INWORLD_API_KEY="your_key" saaya:latest
-```
-
-Detailed deployment workflows and Nginx reverse proxy configs can be found in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ---
 
