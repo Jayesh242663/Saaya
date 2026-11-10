@@ -224,13 +224,15 @@ export function useListeningRoom({
       }
     };
 
-    const handleRoomLeft = () => {
+    const handleRoomLeft = (payload) => {
       setIsInRoom(false);
       setIsHost(false);
       setRoomId(null);
       setParticipants([]);
       setSyncStatus('offline');
-      triggerNotification('Left the station');
+      triggerNotification(
+        payload?.reason === 'HOST_ENDED' ? 'The host ended the room' : 'Left the station'
+      );
     };
 
     const unsubSync = roomService.on('ROOM_SYNC', handleRoomSync);
